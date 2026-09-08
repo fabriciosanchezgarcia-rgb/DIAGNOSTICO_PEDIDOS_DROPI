@@ -613,6 +613,8 @@ function init() {
   const statusBadge = document.getElementById("statusBadge");
   let selectedFile = null;
 
+  const VALID_EXT = /\.(xlsx|xls|csv)$/i;
+
   function setFile(file) {
     selectedFile = file;
     uploadError.hidden = true;
@@ -626,29 +628,54 @@ function init() {
     }
   }
 
-  function showError(msg) { uploadError.hidden = false; uploadError.textContent = msg; }
+  function showError(msg) {
+    uploadError.hidden = false;
+    uploadError.textContent = msg;
+    statusBadge.textContent = "REVISA EL ARCHIVO";
+    statusBadge.classList.remove("is-done");
+  }
 
-  dropzone.addEventListener("click", () => fileInput.click());
-  dropzone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
-  fileInput.addEventListener("change", () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
-
-  ["dragenter", "dragover"].forEach((ev) => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add("is-drag"); }));
-  ["dragleave", "drop"].forEach((ev) => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.remove("is-drag"); }));
-  dropzone.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) setFile(f); });
-
-  analyzeBtn.addEventListener("click", async () => {
+  // Analiza el archivo seleccionado. Nunca deja una excepción sin capturar.
+  async function runAnalysis() {
     if (!selectedFile) return;
-    analyzeBtn.disabled = true; analyzeBtn.textContent = "Analizando…";
+    if (!VALID_EXT.test(selectedFile.name)) {
+      showError("Formato no admitido. Sube un archivo .xlsx, .xls o .csv exportado de Dropi.");
+      return;
+    }
+    uploadError.hidden = true;
+    analyzeBtn.disabled = true;
+    const prevLabel = analyzeBtn.textContent;
+    analyzeBtn.textContent = "Analizando…";
+    statusBadge.textContent = "ANALIZANDO…";
     try {
       const rows = await parseFile(selectedFile);
       analyze(rows);
     } catch (err) {
-      showError("Error al procesar: " + err.message);
-      statusBadge.textContent = "ERROR AL ANALIZAR";
+      showError("No se pudo analizar el reporte: " + (err && err.message ? err.message : "archivo no reconocido") +
+        ". Verifica que sea el reporte de órdenes exportado de Dropi.");
+      console.error(err);
     } finally {
-      analyzeBtn.disabled = false; analyzeBtn.textContent = "Analizar archivo";
+      analyzeBtn.disabled = false;
+      analyzeBtn.textContent = prevLabel;
     }
-  });
+  }
+
+  // Selección de archivo -> análisis automático (sin pulsar el botón).
+  function onFileChosen(file) {
+    if (!file) return;
+    setFile(file);
+    runAnalysis();
+  }
+
+  dropzone.addEventListener("click", () => fileInput.click());
+  dropzone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
+  fileInput.addEventListener("change", () => onFileChosen(fileInput.files[0]));
+
+  ["dragenter", "dragover"].forEach((ev) => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add("is-drag"); }));
+  ["dragleave", "drop"].forEach((ev) => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.remove("is-drag"); }));
+  dropzone.addEventListener("drop", (e) => onFileChosen(e.dataTransfer.files[0]));
+
+  analyzeBtn.addEventListener("click", runAnalysis);
 
   clearBtn.addEventListener("click", () => {
     setFile(null); fileInput.value = ""; destroyCharts();
