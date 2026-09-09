@@ -352,6 +352,102 @@ function buildAlerts(m) {
 }
 
 /* --------------------------------------------------------------------
+ * 7b. Motor de decisiones accionables
+ * Traduce el diagnóstico en acciones priorizadas con dinero en juego:
+ * qué gestionar hoy, cuánto se puede recuperar y cuánto se está fugando.
+ * ------------------------------------------------------------------ */
+
+// Dinero (recaudo/flete) y conteo agregados por grupo de estado.
+function moneyByGroup(rows) {
+  const g = {
+    entregado: { n: 0, rec: 0, flete: 0 }, transito: { n: 0, rec: 0, flete: 0 },
+    novedad: { n: 0, rec: 0, flete: 0 }, cancelado: { n: 0, rec: 0, flete: 0 },
+    extraviado: { n: 0, rec: 0, flete: 0 },
+  };
+  for (const r of rows) {
+    const b = g[r.grupo] || (g[r.grupo] = { n: 0, rec: 0, flete: 0 });
+    b.n++; b.rec += r.recaudo; b.flete += r.flete;
+  }
+  return g;
+}
+
+// tone -> prioridad para ordenar (rojo primero).
+const DEC_RANK = { red: 0, orange: 1, yellow: 2, green: 3 };
+
+function buildDecisions(m) {
+  const g = moneyByGroup(m.rows);
+  const recuperable = g.transito.rec + g.novedad.rec;   // recaudo por cobrar si se entrega
+  const enFuga = g.cancelado.rec + g.extraviado.rec;    // recaudo que no se cobrará
+  const decisions = [];
+
+  // 1. Extravíos: reclamar y bloquear flete.
+  if (g.extraviado.n > 0) {
+    decisions.push({
+      key: "extravio", label: "RECLAMAR", tone: "red",
+      title: "Reclamar órdenes extraviadas", impact: g.extraviado.rec,
+      detail: `${fmtInt(g.extraviado.n)} guías extraviadas · flete asociado ${fmtMoney(g.extraviado.flete)}.`,
+      action: `Abre reclamación con la transportadora y bloquea el pago de flete (${fmtMoney(g.extraviado.flete)}) de esas guías.`,
+    });
+  }
+
+  // 2. Novedades: gestionar antes de que migren a devolución.
+  if (g.novedad.n > 0) {
+    const tone = g.novedad.rec >= recuperable * 0.4 && g.novedad.n >= 5 ? "red" : "yellow";
+    decisions.push({
+      key: "novedad", label: "GESTIONAR", tone,
+      title: "Resolver novedades pendientes", impact: g.novedad.rec,
+      detail: `${fmtInt(g.novedad.n)} pedidos en novedad reteniendo ${fmtMoney(g.novedad.rec)}.`,
+      action: "Contacta o reprograma en menos de 48 h antes de que migren a devolución; así recuperas ese recaudo.",
+    });
+  }
+
+  // 3. Tránsito: destrabar guías antiguas (recaudo por cobrar).
+  if (g.transito.n > 0) {
+    const tone = m.diasPromedio > TH.transitoDeterioro ? "orange" : "yellow";
+    decisions.push({
+      key: "transito", label: "DESTRABAR", tone,
+      title: "Acelerar entregas en tránsito", impact: g.transito.rec,
+      detail: `${fmtInt(g.transito.n)} pedidos en ruta · tránsito promedio ${m.diasPromedio.toFixed(1)} días.`,
+      action: `Prioriza las guías con más días en ruta; hay ${fmtMoney(g.transito.rec)} de recaudo por cobrar.`,
+    });
+  }
+
+  // 4. Cancelaciones: auditar causas si superan umbral.
+  if (m.cancelPct >= TH.cancelWarning) {
+    decisions.push({
+      key: "cancel", label: "AUDITAR", tone: m.cancelPct >= TH.cancelCritical ? "red" : "orange",
+      title: "Auditar cancelaciones", impact: g.cancelado.rec,
+      detail: `Cancelación en ${fmtPct(m.cancelPct)} (${fmtInt(g.cancelado.n)} pedidos, ${fmtMoney(g.cancelado.rec)} perdidos).`,
+      action: "Revisa cohortes recientes (producto/zona/creativo) y activa confirmación previa para frenar la fuga.",
+    });
+  }
+
+  // 5. Flete: renegociar si la presión sobre el ticket es alta.
+  if (m.presionFlete > TH.fletePresionOk) {
+    decisions.push({
+      key: "flete", label: "OPTIMIZAR", tone: m.presionFlete > TH.fletePresionAlto ? "red" : "yellow",
+      title: "Optimizar costo de flete", impact: 0,
+      detail: `El flete promedio (${fmtMoney(m.fletePromedio)}) es ${fmtPct(m.presionFlete)} del ticket (${fmtMoney(m.ticketPromedio)}).`,
+      action: `Renegocia tarifas y zonas con sobrecosto; el objetivo sano es ≤ ${TH.fletePresionOk}% del ticket.`,
+    });
+  }
+
+  // 6. Cumplimiento / mezcla de carriers: rebalancear si baja de saludable.
+  if (m.cumplimiento < TH.cumplSaludable) {
+    decisions.push({
+      key: "carrier", label: "REBALANCEAR", tone: m.cumplimiento < TH.cumplRiesgo ? "red" : "yellow",
+      title: "Rebalancear transportadoras", impact: m.carrierPending[m.topPendingCarrier] || 0,
+      detail: `Cumplimiento ${fmtPct(m.cumplimiento)} · mayor recaudo pendiente en ${m.topPendingCarrier}.`,
+      action: `Reduce volumen en la transportadora con más pendiente (${m.topPendingCarrier}) y ajusta la promesa comercial.`,
+    });
+  }
+
+  decisions.sort((a, b) => (DEC_RANK[a.tone] - DEC_RANK[b.tone]) || (b.impact - a.impact));
+
+  return { decisions, recuperable, enFuga, foco: decisions.length ? decisions[0].title : "—", byGroup: g };
+}
+
+/* --------------------------------------------------------------------
  * 8. Badges de KPI
  * ------------------------------------------------------------------ */
 
@@ -498,6 +594,40 @@ function renderExec(m, alerts) {
   document.getElementById("execSummary").innerHTML = txt;
 }
 
+function renderDecisions(d) {
+  const sec = document.getElementById("decisions");
+  if (!sec) return;
+  const tiles = [
+    { label: "DINERO RECUPERABLE", value: fmtMoney(d.recuperable), tone: "green", sub: "En tránsito + novedad, si se entrega." },
+    { label: "DINERO EN FUGA", value: fmtMoney(d.enFuga), tone: "red", sub: "Cancelado + extraviado (no se cobrará)." },
+    { label: "ACCIONES PRIORIZADAS", value: fmtInt(d.decisions.length), tone: "orange", sub: "Ordenadas por urgencia e impacto." },
+    { label: "FOCO PRINCIPAL", value: d.foco, tone: "yellow", sub: "Empieza por aquí hoy.", small: true },
+  ];
+  document.getElementById("decSummary").innerHTML = tiles.map((t) => `
+    <div class="dec-tile">
+      <div class="dec-tile__label">${t.label}</div>
+      <div class="dec-tile__value val--${t.tone}${t.small ? " dec-tile__value--sm" : ""}">${t.value}</div>
+      <div class="dec-tile__sub">${t.sub}</div>
+    </div>`).join("");
+
+  if (!d.decisions.length) {
+    document.getElementById("decList").innerHTML = `<div class="dec-row"><div class="dec-row__body"><h4>Sin acciones urgentes</h4><p>La operación está dentro de los umbrales: mantén el monitoreo de backlog y tránsito.</p></div></div>`;
+    sec.hidden = false;
+    return;
+  }
+
+  document.getElementById("decList").innerHTML = d.decisions.map((x) => `
+    <div class="dec-row dec-row--${x.tone}">
+      <div class="dec-row__badge tag tag--${x.tone}">${x.label}</div>
+      <div class="dec-row__body">
+        <div class="dec-row__title"><h4>${x.title}</h4>${x.impact > 0 ? `<span class="dec-row__impact">${fmtMoney(x.impact)}</span>` : ""}</div>
+        <p class="dec-row__detail">${x.detail}</p>
+        <p class="dec-row__action"><strong>Acción:</strong> ${x.action}</p>
+      </div>
+    </div>`).join("");
+  sec.hidden = false;
+}
+
 /* --------------------------------------------------------------------
  * 10. Gráficos (Chart.js)
  * ------------------------------------------------------------------ */
@@ -566,9 +696,11 @@ function analyze(rows) {
   const m = computeMetrics(rows);
   const series = computeSeries(rows);
   const alerts = buildAlerts(m);
+  const decisions = buildDecisions(m);
 
   renderKpis(m, alerts);
   renderStrip(m);
+  renderDecisions(decisions);
   renderAlerts(alerts);
   renderTable(m);
   renderExec(m, alerts);
@@ -690,5 +822,5 @@ function init() {
 if (typeof document !== "undefined") {
   init();
 } else if (typeof module !== "undefined" && module.exports) {
-  module.exports = { norm, toNumber, toDate, groupOfState, normalizeRows, computeMetrics, computeSeries, buildAlerts, kpiBadges };
+  module.exports = { norm, toNumber, toDate, groupOfState, normalizeRows, computeMetrics, computeSeries, buildAlerts, buildDecisions, moneyByGroup, kpiBadges };
 }

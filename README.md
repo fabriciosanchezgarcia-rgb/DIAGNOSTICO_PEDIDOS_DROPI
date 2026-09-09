@@ -121,6 +121,27 @@ Alertas generadas automáticamente:
 > Los umbrales están centralizados en el objeto `TH` de `assets/app.js` para
 > ajustarlos fácilmente a la operación real.
 
+### Decisiones accionables (`buildDecisions` en `app.js`)
+
+Sobre el diagnóstico, la app añade una sección **Decisiones accionables** que
+traduce las métricas en un plan priorizado con el dinero en juego:
+
+- **Dinero recuperable** = recaudo en tránsito + novedad (se cobra si se entrega).
+- **Dinero en fuga** = recaudo en cancelado + extraviado (no se cobrará).
+- **Acciones priorizadas** por urgencia (rojo → naranja → amarillo) y luego por
+  impacto en pesos. Cada acción trae su detalle y el paso concreto a ejecutar:
+
+| Acción | Se dispara cuando | Impacto que muestra |
+|---|---|---|
+| **RECLAMAR** extravíos | hay órdenes extraviadas | recaudo extraviado (+ flete a bloquear) |
+| **GESTIONAR** novedades | hay órdenes en novedad | recaudo retenido en novedad |
+| **DESTRABAR** tránsito | hay órdenes en tránsito | recaudo por cobrar en ruta |
+| **AUDITAR** cancelaciones | cancelación ≥ 8% | recaudo cancelado |
+| **OPTIMIZAR** flete | presión de flete > 18% | — |
+| **REBALANCEAR** carriers | cumplimiento < 70% | pendiente del carrier más expuesto |
+
+La misma lógica se imprime en el CLI de la skill (bloque *DECISIONES ACCIONABLES*).
+
 ---
 
 ## Validación

@@ -40,11 +40,12 @@ try {
   process.exit(1);
 }
 
-let m, alerts;
+let m, alerts, decisions;
 try {
   const rows = eng.normalizeRows(matrix);
   m = eng.computeMetrics(rows);
   alerts = eng.buildAlerts(m);
+  decisions = eng.buildDecisions(m);
 } catch (e) {
   console.error("No se pudo analizar el reporte:", e.message);
   console.error("Verifica que sea el reporte de órdenes exportado de Dropi.");
@@ -88,6 +89,17 @@ alerts.forEach((a) => {
   L.push(`  [${a.level.toUpperCase()}] ${a.title}`);
   L.push(`      ${a.text}`);
   L.push(`      Acción: ${a.action}`);
+});
+L.push("");
+L.push("DECISIONES ACCIONABLES");
+L.push(`  Dinero recuperable........ ${money(decisions.recuperable)}  (tránsito + novedad)`);
+L.push(`  Dinero en fuga............ ${money(decisions.enFuga)}  (cancelado + extraviado)`);
+L.push(`  Foco principal............ ${decisions.foco}`);
+if (!decisions.decisions.length) L.push("  Sin acciones urgentes.");
+decisions.decisions.forEach((x) => {
+  L.push(`  [${x.label}] ${x.title}${x.impact > 0 ? "  ·  " + money(x.impact) : ""}`);
+  L.push(`      ${x.detail}`);
+  L.push(`      Acción: ${x.action}`);
 });
 L.push("");
 L.push("DISTRIBUCIÓN POR ESTADO");
