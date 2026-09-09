@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dropi Ops Analyzer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f5822e'/%3E%3Ccircle cx='16' cy='15' r='8' fill='none' stroke='%230b0b0f' stroke-width='2.5'/%3E%3Ccircle cx='13' cy='13' r='1.8' fill='%230b0b0f'/%3E%3Ccircle cx='19' cy='13' r='1.8' fill='%230b0b0f'/%3E%3Cpath d='M12 19c2 2.5 6 2.5 8 0' fill='none' stroke='%230b0b0f' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <meta name="description" content="Diagnóstico operativo de pedidos de Dropi en minutos. Sube un reporte XLSX o CSV y obtén métricas críticas, alertas y lectura ejecutiva." />
+  <link rel="stylesheet" href="./assets/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- ===================== HEADER ===================== -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand__logo" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="34" height="34">
+            <circle cx="24" cy="24" r="14" fill="none" stroke="#0b0b0f" stroke-width="4"/>
+            <circle cx="18" cy="21" r="3.2" fill="#0b0b0f"/>
+            <circle cx="30" cy="21" r="3.2" fill="#0b0b0f"/>
+            <path d="M16 30c3 4 13 4 16 0" fill="none" stroke="#0b0b0f" stroke-width="4" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="brand__text">
+          <strong>Dropi Ops Analyzer</strong>
+          <span>MARKETPLACE SUBAPP</span>
+        </div>
+      </div>
+      <div id="statusBadge" class="status-badge">LISTO PARA CARGAR</div>
+    </header>
+
+    <!-- ===================== HERO + UPLOAD ===================== -->
+    <section class="grid-hero">
+      <div class="card hero">
+        <span class="pill pill--muted">LOGÍSTICA + RECAUDO</span>
+        <h1>Diagnóstico operativo de pedidos en minutos.</h1>
+        <p class="hero__lead">Sube un reporte de Dropi (XLSX o CSV) y obtén métricas críticas de operación, alertas y lectura ejecutiva.</p>
+        <div class="hero__chips">
+          <span class="chip">Solo reporte Dropi</span>
+          <span class="chip">Formato XLSX y CSV</span>
+          <span class="chip">Análisis temporal por archivo</span>
+        </div>
+      </div>
+
+      <div class="card upload">
+        <h2>Cargar reporte</h2>
+        <p class="muted">Formato admitido: XLSX o CSV exportado de Dropi. El archivo se procesa en memoria y no se persiste.</p>
+        <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Seleccionar archivo">
+          <strong>Selecciona tu archivo</strong>
+          <span>Click para buscar o arrastra aquí.</span>
+        </div>
+        <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" hidden />
+        <p id="fileMeta" class="file-meta" hidden></p>
+        <div class="upload__actions">
+          <button id="analyzeBtn" class="btn btn--primary" disabled>Analizar archivo</button>
+          <button id="clearBtn" class="btn btn--ghost">Limpiar</button>
+        </div>
+        <p id="uploadError" class="upload-error" hidden></p>
+      </div>
+    </section>
+
+    <!-- ===================== EMPTY STATE ===================== -->
+    <section id="emptyState" class="card empty">
+      <h2>Vista inicial de control operativo</h2>
+      <p class="muted">Al cargar tu reporte, verás de inmediato dinero en riesgo, cumplimiento de entregas, fuga operativa y alertas de priorización diaria para decidir qué atacar primero.</p>
+      <div class="blocks">
+        <div class="block"><span class="block__tag">BLOQUE 01</span><strong>Dinero pendiente de recaudo</strong><p>Monto total pendiente y porcentaje sobre el COD potencial para anticipar flujo de caja.</p></div>
+        <div class="block"><span class="block__tag">BLOQUE 02</span><strong>Entregadas vs tránsito</strong><p>Evolución diaria para detectar cuellos de botella antes de que se conviertan en devoluciones.</p></div>
+        <div class="block"><span class="block__tag">BLOQUE 03</span><strong>Estados críticos</strong><p>Órdenes en novedad, cancelación o extravío para priorizar acciones del equipo.</p></div>
+        <div class="block"><span class="block__tag">BLOQUE 04</span><strong>Presión de flete</strong><p>Flete promedio comparado contra ticket para proteger margen unitario de la operación.</p></div>
+        <div class="block"><span class="block__tag">BLOQUE 05</span><strong>Mapa de alertas</strong><p>Detección automática de cancelaciones, extravíos y deterioro de tránsito por umbrales.</p></div>
+        <div class="block"><span class="block__tag">BLOQUE 06</span><strong>Lectura ejecutiva</strong><p>Resumen accionable para alinear marketing, operaciones y servicio al cliente.</p></div>
+      </div>
+    </section>
+
+    <!-- ===================== RESULTS ===================== -->
+    <main id="results" hidden>
+      <!-- Primary KPI cards -->
+      <section class="grid-kpi" id="kpiPrimary"></section>
+      <!-- Secondary strip -->
+      <section class="grid-strip" id="kpiStrip"></section>
+
+      <!-- Decisiones accionables -->
+      <section id="decisions" class="card decisions" hidden>
+        <div class="decisions__head">
+          <h3>Decisiones accionables</h3>
+          <span id="decisionsLead">Qué gestionar primero y cuánto dinero está en juego</span>
+        </div>
+        <div class="dec-summary" id="decSummary"></div>
+        <div class="dec-list" id="decList"></div>
+      </section>
+
+      <!-- Charts -->
+      <section class="grid-charts">
+        <div class="card chart-card">
+          <div class="chart-card__head"><h3>Entregas y tránsito por día</h3><span>Serie temporal por fecha del reporte</span></div>
+          <div class="chart-wrap"><canvas id="chartDaily"></canvas></div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-card__head"><h3>Recaudo diario</h3><span>Cobrado vs pendiente</span></div>
+          <div class="chart-wrap"><canvas id="chartMoney"></canvas></div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-card__head"><h3>Distribución por estado</h3><span>Conteo de órdenes por estado</span></div>
+          <div class="chart-wrap chart-wrap--donut"><canvas id="chartStates"></canvas></div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-card__head"><h3>Estados en dinero</h3><span>COD agregado por estado</span></div>
+          <div class="chart-wrap"><canvas id="chartMoneyStates"></canvas></div>
+        </div>
+      </section>
+
+      <!-- Alerts -->
+      <section id="alerts" class="alerts"></section>
+
+      <!-- High-risk table -->
+      <section class="card table-card">
+        <div class="table-card__head">
+          <h3>Órdenes de alto riesgo</h3>
+          <span id="tableCount"></span>
+        </div>
+        <div class="table-scroll">
+          <table class="risk-table">
+            <thead>
+              <tr>
+                <th>Orden</th><th>Estado</th><th>Grupo</th><th>Transportadora</th>
+                <th>Tracking</th><th>Ciudad</th><th>Días tránsito</th><th>Recaudo</th><th>Flete</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Executive reading -->
+      <section class="card exec">
+        <h3>Lectura ejecutiva</h3>
+        <p id="execSummary" class="exec__text"></p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Dropi Ops Analyzer · Reconstrucción operativa. Todo el procesamiento ocurre en tu navegador.</span>
+    </footer>
+  </div>
+
+  <!-- Librerías incluidas localmente: la app funciona sin conexión. -->
+  <script src="./assets/vendor/xlsx.full.min.js"></script>
+  <script src="./assets/vendor/chart.umd.min.js"></script>
+  <script src="./assets/app.js"></script>
+</body>
+</html>
