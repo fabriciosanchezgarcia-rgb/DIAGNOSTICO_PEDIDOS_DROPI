@@ -24,18 +24,22 @@ const COLUMN_ALIASES = {
   tracking:      ["GUIA", "NUMERO GUIA", "NUMERO DE GUIA", "TRACKING", "N GUIA", "GUIA DE ENVIO"],
   ciudad:        ["CIUDAD", "CIUDAD DESTINO", "CIUDAD DE DESTINO", "CIUDAD ENVIO", "MUNICIPIO"],
   departamento:  ["DEPARTAMENTO", "DEPTO", "DEPARTAMENTO DESTINO", "ESTADO/PROVINCIA"],
-  recaudo:       ["TOTAL DE LA ORDEN", "VALOR RECAUDO", "RECAUDO", "VALOR DE RECAUDO", "TOTAL ORDEN",
-                  "PRECIO", "MONTO RECAUDO", "COD", "VALOR A COBRAR", "TOTAL"],
-  flete:         ["PRECIO FLETE", "FLETE", "COSTO FLETE", "VALOR FLETE", "PRECIO DEL FLETE", "COSTO DE ENVIO"],
+  // Nota: el orden importa (gana el primer alias que exista como columna). No usar
+  // aliases genéricos como "PRECIO"/"TOTAL": capturan "PRECIO FLETE" o
+  // "TOTAL EN PRECIOS DE PROVEEDOR" y rompen el recaudo. El export chileno trae el
+  // valor cobrado al cliente en "VALOR DE COMPRA EN PRODUCTOS".
+  recaudo:       ["TOTAL DE LA ORDEN", "VALOR DE COMPRA EN PRODUCTOS", "VALOR RECAUDO", "RECAUDO",
+                  "VALOR DE RECAUDO", "TOTAL ORDEN", "MONTO RECAUDO", "VALOR A COBRAR", "VALOR FACTURADO", "COD"],
+  flete:         ["PRECIO FLETE", "PRECIO DEL FLETE", "COSTO FLETE", "VALOR FLETE", "COSTO DE ENVIO", "FLETE"],
   fecha:         ["FECHA", "FECHA CREACION", "FECHA DE CREACION", "FECHA DE LA ORDEN", "CREADO", "FECHA REGISTRO"],
-  fechaEntrega:  ["FECHA ENTREGA", "FECHA DE ENTREGA", "ENTREGADO EL", "FECHA ENTREGADO"],
+  fechaEntrega:  ["FECHA ENTREGA", "FECHA DE ENTREGA", "ENTREGADO EL", "FECHA ENTREGADO", "FECHA DE ULTIMO MOVIMIENTO"],
   diasTransito:  ["DIAS TRANSITO", "DIAS DE TRANSITO", "DIAS EN TRANSITO", "DIAS", "TIEMPO TRANSITO"],
 };
 
 // Agrupación lógica de estados. Cualquier estado NO listado aquí -> "transito".
 const GROUP_BY_STATE = {
   entregado:  ["ENTREGADO", "ENTREGADA"],
-  cancelado:  ["CANCELADO", "CANCELADA", "DEVOLUCION", "DEVUELTO", "RECHAZADO", "ANULADO", "DEVOLUCION AL ORIGEN"],
+  cancelado:  ["CANCELADO", "CANCELADA", "DEVOLUCION", "DEVUELTO", "RECHAZADO", "ANULADO", "ANULADA", "GUIA_ANULADA", "GUIA ANULADA", "DEVOLUCION AL ORIGEN"],
   extraviado: ["EXTRAVIADO", "EXTRAVIO", "EXTRAVIADA", "PERDIDO", "SINIESTRO", "SINIESTRADO"],
   novedad:    ["NOVEDAD", "RECLAME EN OFICINA", "EN ESPERA DE RX", "EN ESPERA", "PENDIENTE DE NOVEDAD"],
 };
