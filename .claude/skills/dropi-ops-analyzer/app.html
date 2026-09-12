@@ -489,7 +489,7 @@ body {
         <table class="detail-table">
           <thead>
             <tr>
-              <th>Guía</th><th>ID orden</th><th>Estado</th><th>Transportadora</th>
+              <th>Guía</th><th>ID orden</th><th>Estado</th><th>Origen</th><th>Transportadora</th>
               <th>Ciudad</th><th class="num">Días</th><th class="num">Recaudo</th>
             </tr>
           </thead>
@@ -539,6 +539,7 @@ const COLUMN_ALIASES = {
   fecha:         ["FECHA", "FECHA CREACION", "FECHA DE CREACION", "FECHA DE LA ORDEN", "CREADO", "FECHA REGISTRO"],
   fechaEntrega:  ["FECHA ENTREGA", "FECHA DE ENTREGA", "ENTREGADO EL", "FECHA ENTREGADO", "FECHA DE ULTIMO MOVIMIENTO"],
   diasTransito:  ["DIAS TRANSITO", "DIAS DE TRANSITO", "DIAS EN TRANSITO", "DIAS", "TIEMPO TRANSITO"],
+  novedad:       ["NOVEDAD", "MOTIVO DE NOVEDAD", "MOTIVO NOVEDAD", "TIPO DE NOVEDAD", "MOTIVO"],
 };
 
 // Agrupación lógica de estados. Cualquier estado NO listado aquí -> "transito".
@@ -655,6 +656,19 @@ function groupOfState(estado) {
   return "transito";
 }
 
+// Origen de una cancelación (solo para el grupo "cancelado"):
+//  - "transportadora": hubo intento de entrega / devolución en ruta (novedad
+//    registrada o estado DEVOLUCION) -> reclamable a la transportadora (carrier).
+//  - "interna": cancelada por servicio al cliente / vendedor, sin novedad
+//    (típico CANCELADO / GUIA_ANULADA en "pendiente confirmación").
+function cancelOrigin(r) {
+  if (r.grupo !== "cancelado") return null;
+  const e = norm(r.estado);
+  if (e.includes("DEVOLUCION")) return "transportadora";
+  if (r.novedad && r.novedad.trim() !== "") return "transportadora";
+  return "interna";
+}
+
 /* --------------------------------------------------------------------
  * 4. Normalización del reporte a filas canónicas
  * ------------------------------------------------------------------ */
@@ -700,6 +714,7 @@ function normalizeRows(matrix) {
       departamento: (String(cell(raw, "departamento") || "").trim()).toUpperCase(),
       recaudo: toNumber(cell(raw, "recaudo")),
       flete: toNumber(cell(raw, "flete")),
+      novedad: String(cell(raw, "novedad") || "").trim(),
       fecha,
       dias,
     });
@@ -724,6 +739,8 @@ function computeMetrics(rows) {
   const cityFuga = {};          // conteo de fuga por ciudad
   const carrierPending = {};    // recaudo pendiente por transportadora
   const carriers = {};          // stats por transportadora (total, entregadas, cobrado, pendiente)
+  const cancelInterna = { n: 0, rec: 0 };        // canceladas por servicio al cliente / vendedor
+  const cancelTransportadora = { n: 0, rec: 0 }; // devoluciones / rechazos en ruta (carrier)
 
   for (const r of rows) {
     by[r.grupo] = (by[r.grupo] || 0) + 1;
@@ -746,6 +763,12 @@ function computeMetrics(rows) {
     stateMoney[est] = (stateMoney[est] || 0) + r.recaudo;
 
     if (r.grupo === "cancelado" || r.grupo === "extraviado") cityFuga[r.ciudad] = (cityFuga[r.ciudad] || 0) + 1;
+
+    if (r.grupo === "cancelado") {
+      const org = cancelOrigin(r);
+      const bucket = org === "transportadora" ? cancelTransportadora : cancelInterna;
+      bucket.n++; bucket.rec += r.recaudo;
+    }
   }
 
   const entregadas = by.entregado, enTransito = by.transito, novedad = by.novedad;
@@ -784,6 +807,7 @@ function computeMetrics(rows) {
     cumplimiento, fugaPct, cancelPct, presionFlete,
     pctTransito: pct(enTransito), pctEntregadas: cumplimiento, pctExtraviadas: pct(extraviadas),
     stateCount, stateMoney, cityFuga, carrierPending, carrierStats,
+    cancelInterna, cancelTransportadora,
     topFugaCity: topCity ? topCity[0] : "—",
     topPendingCarrier: topCarrier ? topCarrier[0] : "—",
     rows,
@@ -823,9 +847,9 @@ function buildAlerts(m) {
   if (m.cancelPct >= TH.cancelWarning) {
     alerts.push({
       level: m.cancelPct >= TH.cancelCritical ? "critical" : "warning",
-      title: "Cancelaciones elevadas",
+      title: "Cancelaciones elevadas (high cancellation rate)",
       text: `La tasa de cancelación es ${fmtPct(m.cancelPct)}.`,
-      action: "Auditar cohortes recientes y activar recuperación preventiva en pedidos de alto riesgo.",
+      action: "Separa el origen: confirma pedidos (order confirmation) para frenar las cancelaciones internas y reclama (claim) las devoluciones en transportadora (carrier).",
     });
   }
 
@@ -843,25 +867,25 @@ function buildAlerts(m) {
       level: "critical",
       title: "Flete promedio anómalo",
       text: `Hay estados con costo unitario proyectado por encima de ${Math.round(TH.fleteEstadoAnomalo * 100)}% del promedio.`,
-      action: "Recalcular tarifas negociadas y auditar zonas/transportadoras con sobrecosto sostenido.",
+      action: "Recalcular tarifas negociadas (rates) y auditar zonas/transportadoras (carriers) con sobrecosto sostenido.",
     });
   }
 
   if (m.extraviadas > 0) {
     alerts.push({
       level: "critical",
-      title: "Órdenes extraviadas",
+      title: "Órdenes extraviadas (lost)",
       text: `Se detectaron ${fmtInt(m.extraviadas)} órdenes extraviadas (${fmtPct(m.pctExtraviadas)}).`,
-      action: "Abrir reclamación con la transportadora y bloquear pago de flete de esas guías.",
+      action: "Abrir reclamación (claim) con la transportadora y bloquear el pago de flete (shipping) de esas guías.",
     });
   }
 
   if (m.cumplimiento < TH.cumplRiesgo) {
     alerts.push({
       level: "critical",
-      title: "Cumplimiento por debajo del umbral",
+      title: "Cumplimiento por debajo del umbral (low delivery rate)",
       text: `El cumplimiento de entrega es ${fmtPct(m.cumplimiento)}, bajo el mínimo de ${TH.cumplRiesgo}%.`,
-      action: "Ajustar promesa comercial y rebalancear la mezcla de transportadoras.",
+      action: "Ajustar promesa comercial (delivery promise) y rebalancear la mezcla de transportadoras (carriers).",
     });
   }
 
@@ -870,7 +894,7 @@ function buildAlerts(m) {
       level: "warning",
       title: "Deterioro de tránsito",
       text: `El tránsito promedio es de ${m.diasPromedio.toFixed(1)} días, por encima de ${TH.transitoDeterioro}.`,
-      action: "Priorizar guías antiguas antes de que migren a novedad o devolución.",
+      action: "Priorizar guías antiguas antes de que migren a novedad (exception) o devolución (return).",
     });
   }
 
@@ -906,13 +930,16 @@ function buildDecisions(m) {
   const enFuga = g.cancelado.rec + g.extraviado.rec;    // recaudo que no se cobrará
   const decisions = [];
 
+  const ci = m.cancelInterna || { n: 0, rec: 0 };
+  const ct = m.cancelTransportadora || { n: 0, rec: 0 };
+
   // 1. Extravíos: reclamar y bloquear flete.
   if (g.extraviado.n > 0) {
     decisions.push({
       key: "extravio", label: "RECLAMAR", tone: "red",
-      title: "Reclamar órdenes extraviadas", impact: g.extraviado.rec,
-      detail: `${fmtInt(g.extraviado.n)} guías extraviadas · flete asociado ${fmtMoney(g.extraviado.flete)}.`,
-      action: `Abre reclamación con la transportadora y bloquea el pago de flete (${fmtMoney(g.extraviado.flete)}) de esas guías.`,
+      title: "Reclamar órdenes extraviadas (lost)", impact: g.extraviado.rec,
+      detail: `${fmtInt(g.extraviado.n)} guías extraviadas · flete (shipping) asociado ${fmtMoney(g.extraviado.flete)}.`,
+      action: `Abre reclamación (claim) con la transportadora (carrier) y bloquea el pago de flete (${fmtMoney(g.extraviado.flete)}) de esas guías.`,
     });
   }
 
@@ -921,9 +948,9 @@ function buildDecisions(m) {
     const tone = g.novedad.rec >= recuperable * 0.4 && g.novedad.n >= 5 ? "red" : "yellow";
     decisions.push({
       key: "novedad", label: "GESTIONAR", tone,
-      title: "Resolver novedades pendientes", impact: g.novedad.rec,
+      title: "Resolver novedades pendientes (delivery exceptions)", impact: g.novedad.rec,
       detail: `${fmtInt(g.novedad.n)} pedidos en novedad reteniendo ${fmtMoney(g.novedad.rec)}.`,
-      action: "Contacta o reprograma en menos de 48 h antes de que migren a devolución; así recuperas ese recaudo.",
+      action: "Contacta o reprograma (reschedule) en menos de 48 h antes de que migren a devolución (return); así recuperas ese recaudo (COD).",
     });
   }
 
@@ -932,19 +959,29 @@ function buildDecisions(m) {
     const tone = m.diasPromedio > TH.transitoDeterioro ? "orange" : "yellow";
     decisions.push({
       key: "transito", label: "DESTRABAR", tone,
-      title: "Acelerar entregas en tránsito", impact: g.transito.rec,
+      title: "Acelerar entregas en tránsito (in transit)", impact: g.transito.rec,
       detail: `${fmtInt(g.transito.n)} pedidos en ruta · tránsito promedio ${m.diasPromedio.toFixed(1)} días.`,
-      action: `Prioriza las guías con más días en ruta; hay ${fmtMoney(g.transito.rec)} de recaudo por cobrar.`,
+      action: `Prioriza las guías con más días en ruta; hay ${fmtMoney(g.transito.rec)} de recaudo (COD) por cobrar.`,
     });
   }
 
-  // 4. Cancelaciones: auditar causas si superan umbral.
-  if (m.cancelPct >= TH.cancelWarning) {
+  // 4a. Cancelaciones internas (servicio al cliente / vendedor): confirmar pedidos.
+  if (ci.n > 0) {
     decisions.push({
-      key: "cancel", label: "AUDITAR", tone: m.cancelPct >= TH.cancelCritical ? "red" : "orange",
-      title: "Auditar cancelaciones", impact: g.cancelado.rec,
-      detail: `Cancelación en ${fmtPct(m.cancelPct)} (${fmtInt(g.cancelado.n)} pedidos, ${fmtMoney(g.cancelado.rec)} perdidos).`,
-      action: "Revisa cohortes recientes (producto/zona/creativo) y activa confirmación previa para frenar la fuga.",
+      key: "cancel_interna", label: "CONFIRMAR", tone: m.cancelPct >= TH.cancelCritical ? "red" : "orange",
+      title: "Reducir cancelaciones internas (internal cancellations)", impact: ci.rec,
+      detail: `${fmtInt(ci.n)} canceladas por servicio al cliente / vendedor (sin novedad), ${fmtMoney(ci.rec)} perdidos.`,
+      action: "Confirma el pedido (order confirmation) antes de despachar — con un bot de WhatsApp o llamada. Aquí se frena el grueso de la fuga; NO es culpa de la transportadora.",
+    });
+  }
+
+  // 4b. Devoluciones / rechazos en transportadora: reclamar.
+  if (ct.n > 0) {
+    decisions.push({
+      key: "cancel_transportadora", label: "RECLAMAR", tone: "orange",
+      title: "Reclamar devoluciones en transportadora (carrier returns)", impact: ct.rec,
+      detail: `${fmtInt(ct.n)} devoluciones / rechazos en ruta (con novedad), ${fmtMoney(ct.rec)} afectados.`,
+      action: "Descarga el detalle y abre reclamación (claim) por guía a la transportadora: revisión o indemnización (indemnity) del flete y del recaudo.",
     });
   }
 
@@ -952,9 +989,9 @@ function buildDecisions(m) {
   if (m.presionFlete > TH.fletePresionOk) {
     decisions.push({
       key: "flete", label: "OPTIMIZAR", tone: m.presionFlete > TH.fletePresionAlto ? "red" : "yellow",
-      title: "Optimizar costo de flete", impact: 0,
+      title: "Optimizar costo de flete (shipping cost)", impact: 0,
       detail: `El flete promedio (${fmtMoney(m.fletePromedio)}) es ${fmtPct(m.presionFlete)} del ticket (${fmtMoney(m.ticketPromedio)}).`,
-      action: `Renegocia tarifas y zonas con sobrecosto; el objetivo sano es ≤ ${TH.fletePresionOk}% del ticket.`,
+      action: `Renegocia tarifas (rates) y zonas con sobrecosto; el objetivo sano es ≤ ${TH.fletePresionOk}% del ticket.`,
     });
   }
 
@@ -962,9 +999,9 @@ function buildDecisions(m) {
   if (m.cumplimiento < TH.cumplSaludable) {
     decisions.push({
       key: "carrier", label: "REBALANCEAR", tone: m.cumplimiento < TH.cumplRiesgo ? "red" : "yellow",
-      title: "Rebalancear transportadoras", impact: m.carrierPending[m.topPendingCarrier] || 0,
-      detail: `Cumplimiento ${fmtPct(m.cumplimiento)} · mayor recaudo pendiente en ${m.topPendingCarrier}.`,
-      action: `Reduce volumen en la transportadora con más pendiente (${m.topPendingCarrier}) y ajusta la promesa comercial.`,
+      title: "Rebalancear transportadoras (carriers)", impact: m.carrierPending[m.topPendingCarrier] || 0,
+      detail: `Cumplimiento (delivery rate) ${fmtPct(m.cumplimiento)} · mayor recaudo pendiente en ${m.topPendingCarrier}.`,
+      action: `Reduce volumen en la transportadora con más pendiente (${m.topPendingCarrier}) y ajusta la promesa comercial (delivery promise).`,
     });
   }
 
@@ -1259,10 +1296,16 @@ function escapeHtml(v) {
   });
 }
 
+// Etiqueta del origen de cancelación (vacía si la orden no está cancelada).
+function cancelOriginLabel(r) {
+  const o = cancelOrigin(r);
+  return o === "interna" ? "Interna (servicio al cliente)" : o === "transportadora" ? "Transportadora (carrier)" : "";
+}
+
 // Columnas del detalle exportable (sin datos personales).
-const DETAIL_COLS = ["Guía", "ID orden", "Estado", "Grupo", "Transportadora", "Ciudad", "Departamento", "Días", "Recaudo", "Flete"];
+const DETAIL_COLS = ["Guía", "ID orden", "Estado", "Origen", "Grupo", "Transportadora", "Ciudad", "Departamento", "Días", "Recaudo", "Flete"];
 function detailRowValues(r) {
-  return [r.tracking || "", r.orden || "", r.estado || "", r.grupo || "", r.transportadora || "",
+  return [r.tracking || "", r.orden || "", r.estado || "", cancelOriginLabel(r), r.grupo || "", r.transportadora || "",
     r.ciudad || "", r.departamento || "", r.dias || 0, Math.round(r.recaudo || 0), Math.round(r.flete || 0)];
 }
 // CSV con ';' (Excel es-CL) y BOM UTF-8 para que salgan bien los acentos.
@@ -1331,15 +1374,27 @@ function detailFor(m, spec) {
     note = "No entregadas de esta transportadora. Usa las guías para pedir revisión o indemnización a Dropi.";
   } else if (spec.indexOf("dec:") === 0) {
     const key = spec.slice(4);
-    const byGroup = { extravio: "extraviado", novedad: "novedad", transito: "transito", cancel: "cancelado" };
+    const byGroup = { extravio: "extraviado", novedad: "novedad", transito: "transito" };
     const titles = {
-      extravio: "Órdenes extraviadas", novedad: "Órdenes en novedad",
-      transito: "Órdenes en tránsito", cancel: "Órdenes canceladas / devueltas",
+      extravio: "Órdenes extraviadas (lost)", novedad: "Órdenes en novedad (exceptions)",
+      transito: "Órdenes en tránsito (in transit)",
     };
     if (byGroup[key]) {
       list = rows.filter((r) => r.grupo === byGroup[key]);
       title = titles[key];
       note = "Guías afectadas — pídeselas a Dropi para revisión o indemnización.";
+    } else if (key === "cancel_interna") {
+      list = rows.filter((r) => cancelOrigin(r) === "interna");
+      title = "Cancelaciones internas (internal cancellations)";
+      note = "Canceladas por servicio al cliente / vendedor, sin novedad. Se frenan confirmando el pedido antes de despachar.";
+    } else if (key === "cancel_transportadora") {
+      list = rows.filter((r) => cancelOrigin(r) === "transportadora");
+      title = "Devoluciones / rechazos en transportadora (carrier returns)";
+      note = "Con novedad o devolución en ruta. Reclamable a la transportadora (revisión / indemnización).";
+    } else if (key === "cancel") {
+      list = rows.filter((r) => r.grupo === "cancelado");
+      title = "Órdenes canceladas / devueltas";
+      note = "Guías afectadas — revisa el origen en la columna Origen.";
     } else if (key === "flete") {
       list = rows.slice().sort((a, b) => b.flete - a.flete).slice(0, 80);
       title = "Órdenes con mayor flete";
@@ -1376,12 +1431,13 @@ function openDetail(spec) {
           <td>${escapeHtml(r.tracking || "—")}</td>
           <td>${escapeHtml(r.orden || "—")}</td>
           <td>${escapeHtml(r.estado || "—")}</td>
+          <td>${escapeHtml(cancelOriginLabel(r) || "—")}</td>
           <td>${escapeHtml(r.transportadora || "—")}</td>
           <td>${escapeHtml(r.ciudad || "—")}</td>
           <td class="num">${fmtInt(r.dias)}</td>
           <td class="num">${fmtMoney(r.recaudo)}</td>
         </tr>`).join("")
-    : `<tr><td colspan="7">Sin órdenes en esta categoría.</td></tr>`;
+    : `<tr><td colspan="8">Sin órdenes en esta categoría.</td></tr>`;
 
   modal.hidden = false;
   document.body.style.overflow = "hidden";
