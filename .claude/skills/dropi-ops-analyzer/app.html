@@ -987,13 +987,14 @@ function buildDecisions(m) {
     });
   }
 
-  // 4b. Rechazos del cliente (COD): reducir con confirmación previa.
+  // 4b. Rechazos del cliente: verificar falsos rechazos + reducir con confirmación.
   if (cc.n > 0) {
+    const sosp = (m.rows || []).filter((r) => cancelOrigin(r) === "cliente" && r.dias != null && r.dias <= 1).length;
     decisions.push({
-      key: "cancel_cliente", label: "CONFIRMAR", tone: "yellow",
-      title: "Reducir rechazos del cliente (customer rejections)", impact: cc.rec,
-      detail: `${fmtInt(cc.n)} rechazadas por el cliente (rechazó / no estaba / se arrepintió), ${fmtMoney(cc.rec)} perdidos.`,
-      action: "Confirma interés y pago antes de despachar; filtra impulsivos. Tampoco es reclamable a la transportadora (es del cliente).",
+      key: "cancel_cliente", label: "VERIFICAR", tone: sosp > 0 ? "orange" : "yellow",
+      title: "Verificar rechazos del cliente (possible false rejections)", impact: cc.rec,
+      detail: `${fmtInt(cc.n)} marcadas como rechazo del cliente${sosp > 0 ? `, ${fmtInt(sosp)} de ALTA SOSPECHA (rechazadas en ≤1 día)` : ""} · ${fmtMoney(cc.rec)}.`,
+      action: "OJO: el rechazo lo declara el repartidor. Exige a Dropi la prueba del intento (GPS/foto/llamada); los que no la tengan son FALSO RECHAZO (false rejection) = falla de transportadora y SÍ son reclamables. Los reales se reducen confirmando interés y pago antes de despachar.",
     });
   }
 
@@ -1321,9 +1322,16 @@ function escapeHtml(v) {
 // Etiqueta del origen de cancelación (vacía si la orden no está cancelada).
 function cancelOriginLabel(r) {
   const o = cancelOrigin(r);
-  return o === "interna" ? "Interna (vendedor)"
-    : o === "cliente" ? "Cliente rechazó (customer)"
-    : o === "transportadora" ? "Transportadora (carrier)" : "";
+  if (o === "interna") return "Interna (vendedor)";
+  if (o === "transportadora") return "Transportadora (carrier)";
+  if (o === "cliente") {
+    // El rechazo lo declara el repartidor: siempre "a verificar". ≤1 día = muy
+    // rápido para un intento real -> alta sospecha de falso rechazo.
+    return (r.dias != null && r.dias <= 1)
+      ? "Cliente rechazó · ALTA SOSPECHA falso rechazo (verify)"
+      : "Cliente rechazó · verificar (courier-reported)";
+  }
+  return "";
 }
 
 // Columnas del detalle exportable (sin datos personales).
@@ -1413,8 +1421,8 @@ function detailFor(m, spec) {
       note = "Canceladas por el vendedor / servicio al cliente, sin intento de entrega. Se frenan confirmando el pedido antes de despachar.";
     } else if (key === "cancel_cliente") {
       list = rows.filter((r) => cancelOrigin(r) === "cliente");
-      title = "Rechazos del cliente (customer rejections)";
-      note = "El cliente rechazó, no estaba o se arrepintió. NO es reclamable a la transportadora; se reduce con confirmación previa.";
+      title = "Rechazos del cliente — verificar (possible false rejections)";
+      note = "El rechazo lo declara el repartidor. Los de ALTA SOSPECHA (≤1 día) exígeselos a Dropi con prueba del intento; sin prueba son falso rechazo (carrier fault) y reclamables.";
     } else if (key === "cancel_transportadora") {
       list = rows.filter((r) => cancelOrigin(r) === "transportadora");
       title = "Fallas de transportadora reclamables (carrier fault)";
