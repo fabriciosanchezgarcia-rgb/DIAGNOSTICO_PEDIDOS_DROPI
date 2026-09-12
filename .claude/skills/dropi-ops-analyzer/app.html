@@ -490,7 +490,7 @@ body {
           <thead>
             <tr>
               <th>Guía</th><th>ID orden</th><th>Estado</th><th>Origen</th><th>Transportadora</th>
-              <th>Ciudad</th><th class="num">Días</th><th class="num">Recaudo</th>
+              <th>Ciudad</th><th class="num">Días</th><th class="num">Recaudo</th><th>Motivo (novedad)</th>
             </tr>
           </thead>
           <tbody id="detailBody"></tbody>
@@ -656,16 +656,25 @@ function groupOfState(estado) {
   return "transito";
 }
 
-// Origen de una cancelación (solo para el grupo "cancelado"):
-//  - "transportadora": hubo intento de entrega / devolución en ruta (novedad
-//    registrada o estado DEVOLUCION) -> reclamable a la transportadora (carrier).
-//  - "interna": cancelada por servicio al cliente / vendedor, sin novedad
-//    (típico CANCELADO / GUIA_ANULADA en "pendiente confirmación").
+// Origen de una cancelación (solo para el grupo "cancelado"). Tres categorías,
+// pensadas para saber a quién reclamar:
+//  - "interna": cancelada por el vendedor / servicio al cliente, sin intento de
+//    entrega (típico CANCELADO / GUIA_ANULADA en "pendiente confirmación").
+//  - "cliente": el destinatario rechazó, no estaba o se arrepintió (COD). NO es
+//    reclamable a la transportadora.
+//  - "transportadora": falla logística (dirección inubicable, no entregado,
+//    extravío, daño, demora) o devolución en ruta sin motivo -> reclamable a la
+//    transportadora (carrier): pedir pronunciamiento / indemnización a Dropi.
 function cancelOrigin(r) {
   if (r.grupo !== "cancelado") return null;
   const e = norm(r.estado);
-  if (e.includes("DEVOLUCION")) return "transportadora";
-  if (r.novedad && r.novedad.trim() !== "") return "transportadora";
+  const nv = norm(r.novedad || "");
+  if (nv) {
+    if (/RECHAZ|CLIENTE|DESTINATARIO|NADIE EN CASA|NO ESTABA|SE ARREPINT|NO QUIERE|NO CONTESTA|NO RESPONDE/.test(nv)) return "cliente";
+    if (/INUBICABLE|COBERTURA|ZONA|NO ENTREG|EXTRAVI|PERDID|SINIESTR|DANAD|DETERIOR|DEMORA|AVERIAD|NO SE PUDO/.test(nv)) return "transportadora";
+    return "cliente"; // novedad con motivo no logístico -> se atribuye al cliente (conservador)
+  }
+  if (e.includes("DEVOLUCION")) return "transportadora"; // devuelto en ruta sin motivo
   return "interna";
 }
 
@@ -739,8 +748,9 @@ function computeMetrics(rows) {
   const cityFuga = {};          // conteo de fuga por ciudad
   const carrierPending = {};    // recaudo pendiente por transportadora
   const carriers = {};          // stats por transportadora (total, entregadas, cobrado, pendiente)
-  const cancelInterna = { n: 0, rec: 0 };        // canceladas por servicio al cliente / vendedor
-  const cancelTransportadora = { n: 0, rec: 0 }; // devoluciones / rechazos en ruta (carrier)
+  const cancelInterna = { n: 0, rec: 0 };        // vendedor / servicio al cliente (sin intento)
+  const cancelCliente = { n: 0, rec: 0 };        // el cliente rechazó / no estaba / se arrepintió
+  const cancelTransportadora = { n: 0, rec: 0 }; // falla logística reclamable (carrier)
 
   for (const r of rows) {
     by[r.grupo] = (by[r.grupo] || 0) + 1;
@@ -766,7 +776,8 @@ function computeMetrics(rows) {
 
     if (r.grupo === "cancelado") {
       const org = cancelOrigin(r);
-      const bucket = org === "transportadora" ? cancelTransportadora : cancelInterna;
+      const bucket = org === "transportadora" ? cancelTransportadora
+        : org === "cliente" ? cancelCliente : cancelInterna;
       bucket.n++; bucket.rec += r.recaudo;
     }
   }
@@ -807,7 +818,7 @@ function computeMetrics(rows) {
     cumplimiento, fugaPct, cancelPct, presionFlete,
     pctTransito: pct(enTransito), pctEntregadas: cumplimiento, pctExtraviadas: pct(extraviadas),
     stateCount, stateMoney, cityFuga, carrierPending, carrierStats,
-    cancelInterna, cancelTransportadora,
+    cancelInterna, cancelCliente, cancelTransportadora,
     topFugaCity: topCity ? topCity[0] : "—",
     topPendingCarrier: topCarrier ? topCarrier[0] : "—",
     rows,
@@ -931,6 +942,7 @@ function buildDecisions(m) {
   const decisions = [];
 
   const ci = m.cancelInterna || { n: 0, rec: 0 };
+  const cc = m.cancelCliente || { n: 0, rec: 0 };
   const ct = m.cancelTransportadora || { n: 0, rec: 0 };
 
   // 1. Extravíos: reclamar y bloquear flete.
@@ -965,23 +977,33 @@ function buildDecisions(m) {
     });
   }
 
-  // 4a. Cancelaciones internas (servicio al cliente / vendedor): confirmar pedidos.
+  // 4a. Cancelaciones internas (vendedor / servicio al cliente): confirmar pedidos.
   if (ci.n > 0) {
     decisions.push({
       key: "cancel_interna", label: "CONFIRMAR", tone: m.cancelPct >= TH.cancelCritical ? "red" : "orange",
       title: "Reducir cancelaciones internas (internal cancellations)", impact: ci.rec,
-      detail: `${fmtInt(ci.n)} canceladas por servicio al cliente / vendedor (sin novedad), ${fmtMoney(ci.rec)} perdidos.`,
-      action: "Confirma el pedido (order confirmation) antes de despachar — con un bot de WhatsApp o llamada. Aquí se frena el grueso de la fuga; NO es culpa de la transportadora.",
+      detail: `${fmtInt(ci.n)} canceladas por el vendedor / servicio al cliente (sin intento de entrega), ${fmtMoney(ci.rec)} perdidos.`,
+      action: "Confirma el pedido (order confirmation) antes de despachar — con un bot de WhatsApp o llamada. Aquí se frena el grueso de la fuga; NO es reclamable a la transportadora.",
     });
   }
 
-  // 4b. Devoluciones / rechazos en transportadora: reclamar.
+  // 4b. Rechazos del cliente (COD): reducir con confirmación previa.
+  if (cc.n > 0) {
+    decisions.push({
+      key: "cancel_cliente", label: "CONFIRMAR", tone: "yellow",
+      title: "Reducir rechazos del cliente (customer rejections)", impact: cc.rec,
+      detail: `${fmtInt(cc.n)} rechazadas por el cliente (rechazó / no estaba / se arrepintió), ${fmtMoney(cc.rec)} perdidos.`,
+      action: "Confirma interés y pago antes de despachar; filtra impulsivos. Tampoco es reclamable a la transportadora (es del cliente).",
+    });
+  }
+
+  // 4c. Fallas de transportadora: pedir pronunciamiento / indemnización a Dropi.
   if (ct.n > 0) {
     decisions.push({
       key: "cancel_transportadora", label: "RECLAMAR", tone: "orange",
-      title: "Reclamar devoluciones en transportadora (carrier returns)", impact: ct.rec,
-      detail: `${fmtInt(ct.n)} devoluciones / rechazos en ruta (con novedad), ${fmtMoney(ct.rec)} afectados.`,
-      action: "Descarga el detalle y abre reclamación (claim) por guía a la transportadora: revisión o indemnización (indemnity) del flete y del recaudo.",
+      title: "Reclamar fallas de transportadora (carrier fault)", impact: ct.rec,
+      detail: `${fmtInt(ct.n)} con falla logística (dirección inubicable, no entregado, extravío, daño…), ${fmtMoney(ct.rec)} afectados.`,
+      action: "Descarga el detalle con el motivo por guía y solicita a Dropi pronunciamiento (ruling) sobre la transportadora: revisión o indemnización (indemnity) del flete y del recaudo.",
     });
   }
 
@@ -1299,13 +1321,15 @@ function escapeHtml(v) {
 // Etiqueta del origen de cancelación (vacía si la orden no está cancelada).
 function cancelOriginLabel(r) {
   const o = cancelOrigin(r);
-  return o === "interna" ? "Interna (servicio al cliente)" : o === "transportadora" ? "Transportadora (carrier)" : "";
+  return o === "interna" ? "Interna (vendedor)"
+    : o === "cliente" ? "Cliente rechazó (customer)"
+    : o === "transportadora" ? "Transportadora (carrier)" : "";
 }
 
 // Columnas del detalle exportable (sin datos personales).
-const DETAIL_COLS = ["Guía", "ID orden", "Estado", "Origen", "Grupo", "Transportadora", "Ciudad", "Departamento", "Días", "Recaudo", "Flete"];
+const DETAIL_COLS = ["Guía", "ID orden", "Estado", "Origen", "Motivo (novedad)", "Grupo", "Transportadora", "Ciudad", "Departamento", "Días", "Recaudo", "Flete"];
 function detailRowValues(r) {
-  return [r.tracking || "", r.orden || "", r.estado || "", cancelOriginLabel(r), r.grupo || "", r.transportadora || "",
+  return [r.tracking || "", r.orden || "", r.estado || "", cancelOriginLabel(r), r.novedad || "", r.grupo || "", r.transportadora || "",
     r.ciudad || "", r.departamento || "", r.dias || 0, Math.round(r.recaudo || 0), Math.round(r.flete || 0)];
 }
 // CSV con ';' (Excel es-CL) y BOM UTF-8 para que salgan bien los acentos.
@@ -1386,11 +1410,15 @@ function detailFor(m, spec) {
     } else if (key === "cancel_interna") {
       list = rows.filter((r) => cancelOrigin(r) === "interna");
       title = "Cancelaciones internas (internal cancellations)";
-      note = "Canceladas por servicio al cliente / vendedor, sin novedad. Se frenan confirmando el pedido antes de despachar.";
+      note = "Canceladas por el vendedor / servicio al cliente, sin intento de entrega. Se frenan confirmando el pedido antes de despachar.";
+    } else if (key === "cancel_cliente") {
+      list = rows.filter((r) => cancelOrigin(r) === "cliente");
+      title = "Rechazos del cliente (customer rejections)";
+      note = "El cliente rechazó, no estaba o se arrepintió. NO es reclamable a la transportadora; se reduce con confirmación previa.";
     } else if (key === "cancel_transportadora") {
       list = rows.filter((r) => cancelOrigin(r) === "transportadora");
-      title = "Devoluciones / rechazos en transportadora (carrier returns)";
-      note = "Con novedad o devolución en ruta. Reclamable a la transportadora (revisión / indemnización).";
+      title = "Fallas de transportadora reclamables (carrier fault)";
+      note = "Falla logística (inubicable, no entregado, extravío, daño…). Descarga el detalle y pide a Dropi pronunciamiento / indemnización.";
     } else if (key === "cancel") {
       list = rows.filter((r) => r.grupo === "cancelado");
       title = "Órdenes canceladas / devueltas";
@@ -1436,8 +1464,9 @@ function openDetail(spec) {
           <td>${escapeHtml(r.ciudad || "—")}</td>
           <td class="num">${fmtInt(r.dias)}</td>
           <td class="num">${fmtMoney(r.recaudo)}</td>
+          <td>${escapeHtml(r.novedad || "—")}</td>
         </tr>`).join("")
-    : `<tr><td colspan="8">Sin órdenes en esta categoría.</td></tr>`;
+    : `<tr><td colspan="9">Sin órdenes en esta categoría.</td></tr>`;
 
   modal.hidden = false;
   document.body.style.overflow = "hidden";
