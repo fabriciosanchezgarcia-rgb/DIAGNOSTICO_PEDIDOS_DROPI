@@ -638,7 +638,7 @@ function renderDecisions(d) {
   }
 
   document.getElementById("decList").innerHTML = d.decisions.map((x) => `
-    <div class="dec-row dec-row--${x.tone}">
+    <div class="dec-row dec-row--${x.tone} is-clickable" data-detail="dec:${x.key}" title="Ver las órdenes de esta acción">
       <div class="dec-row__badge tag tag--${x.tone}">${x.label}</div>
       <div class="dec-row__body">
         <div class="dec-row__title"><h4>${x.title}</h4>${x.impact > 0 ? `<span class="dec-row__impact">${fmtMoney(x.impact)}</span>` : ""}</div>
@@ -726,7 +726,7 @@ function renderCarriers(m) {
       : (c.cumplimiento >= TH.cumplRiesgo ? "yellow" : "red");
     const w = Math.min(100, Math.max(0, c.cumplimiento)).toFixed(1);
     return `
-      <div class="carrier-tile carrier-tile--${tone}">
+      <div class="carrier-tile carrier-tile--${tone} is-clickable" data-detail="carrier:${c.name.replace(/"/g, "&quot;")}" title="Ver órdenes con problema de esta transportadora">
         <div class="carrier-tile__top">
           <span class="carrier-tile__name">${c.name}</span>
           <span class="carrier-tile__badge">${fmtInt(c.total)} pedidos</span>
@@ -741,8 +741,95 @@ function renderCarriers(m) {
   }).join("");
 }
 
+/* --------------------------------------------------------------------
+ * 11b. Detalle de órdenes (drill-down para reclamar a Dropi)
+ * ------------------------------------------------------------------ */
+
+let LAST_M = null;   // últimas métricas, para abrir el detalle bajo demanda
+
+function escapeHtml(v) {
+  return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+// Devuelve el subconjunto de órdenes detrás de una tarjeta (decisión o transportadora).
+function detailFor(m, spec) {
+  const rows = (m && m.rows) || [];
+  const undelivered = (r) => r.grupo !== "entregado";
+  let title = "Detalle de órdenes", note = "", list = [];
+
+  if (spec.indexOf("carrier:") === 0) {
+    const name = spec.slice(8);
+    list = rows.filter((r) => r.transportadora === name && undelivered(r));
+    title = "Órdenes con problema · " + name;
+    note = "No entregadas de esta transportadora. Usa las guías para pedir revisión o indemnización a Dropi.";
+  } else if (spec.indexOf("dec:") === 0) {
+    const key = spec.slice(4);
+    const byGroup = { extravio: "extraviado", novedad: "novedad", transito: "transito", cancel: "cancelado" };
+    const titles = {
+      extravio: "Órdenes extraviadas", novedad: "Órdenes en novedad",
+      transito: "Órdenes en tránsito", cancel: "Órdenes canceladas / devueltas",
+    };
+    if (byGroup[key]) {
+      list = rows.filter((r) => r.grupo === byGroup[key]);
+      title = titles[key];
+      note = "Guías afectadas — pídeselas a Dropi para revisión o indemnización.";
+    } else if (key === "flete") {
+      list = rows.slice().sort((a, b) => b.flete - a.flete).slice(0, 80);
+      title = "Órdenes con mayor flete";
+      note = "Las guías con flete más alto — útil para renegociar tarifas y zonas.";
+    } else if (key === "carrier") {
+      const name = m.topPendingCarrier;
+      list = rows.filter((r) => r.transportadora === name && undelivered(r));
+      title = "Órdenes pendientes · " + name;
+      note = "Transportadora con más recaudo colgado. Reclama revisión de estas guías.";
+    }
+  }
+  list = list.slice().sort((a, b) => (b.dias - a.dias) || (b.recaudo - a.recaudo));
+  return { title: title, note: note, list: list };
+}
+
+function openDetail(spec) {
+  if (!LAST_M) return;
+  const modal = document.getElementById("detailModal");
+  if (!modal) return;
+  const d = detailFor(LAST_M, spec);
+  const totalRec = d.list.reduce((s, r) => s + r.recaudo, 0);
+
+  document.getElementById("detailTitle").textContent = d.title;
+  document.getElementById("detailSub").textContent =
+    fmtInt(d.list.length) + " órdenes · " + fmtMoney(totalRec) + " en juego · " + d.note;
+
+  document.getElementById("detailGuias").value =
+    d.list.map((r) => (r.tracking || r.orden || "")).filter(Boolean).join("\n");
+
+  document.getElementById("detailBody").innerHTML = d.list.length
+    ? d.list.map((r) => `
+        <tr>
+          <td>${escapeHtml(r.tracking || "—")}</td>
+          <td>${escapeHtml(r.orden || "—")}</td>
+          <td>${escapeHtml(r.estado || "—")}</td>
+          <td>${escapeHtml(r.transportadora || "—")}</td>
+          <td>${escapeHtml(r.ciudad || "—")}</td>
+          <td class="num">${fmtInt(r.dias)}</td>
+          <td class="num">${fmtMoney(r.recaudo)}</td>
+        </tr>`).join("")
+    : `<tr><td colspan="7">Sin órdenes en esta categoría.</td></tr>`;
+
+  modal.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closeDetail() {
+  const modal = document.getElementById("detailModal");
+  if (modal) modal.hidden = true;
+  document.body.style.overflow = "";
+}
+
 function analyze(rows) {
   const m = computeMetrics(rows);
+  LAST_M = m;
   const series = computeSeries(rows);
   const alerts = buildAlerts(m);
   const decisions = buildDecisions(m);
@@ -866,6 +953,28 @@ function init() {
     statusBadge.textContent = "LISTO PARA CARGAR"; statusBadge.classList.remove("is-done");
     uploadError.hidden = true;
   });
+
+  // Drill-down: clic en una decisión o transportadora abre el detalle de órdenes.
+  document.addEventListener("click", (e) => {
+    const trigger = e.target.closest("[data-detail]");
+    if (trigger) { openDetail(trigger.getAttribute("data-detail")); return; }
+    if (e.target.closest(".detail-close")) { closeDetail(); return; }
+    const modal = document.getElementById("detailModal");
+    if (modal && e.target === modal) closeDetail();   // clic en el fondo
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDetail(); });
+
+  const copyBtn = document.getElementById("detailCopy");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", () => {
+      const ta = document.getElementById("detailGuias");
+      ta.select(); ta.setSelectionRange(0, 99999);
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      copyBtn.textContent = ok ? "¡Copiado!" : "Selecciona y copia (Ctrl+C)";
+      setTimeout(() => { copyBtn.textContent = "Copiar guías"; }, 1800);
+    });
+  }
 }
 
 // Arranque solo en el navegador; en Node se exporta el motor para pruebas.

@@ -153,6 +153,37 @@
     </footer>
   </div>
 
+  <!-- Modal de detalle de órdenes (drill-down para reclamar a Dropi) -->
+  <div id="detailModal" class="detail-modal" hidden>
+    <div class="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <div class="detail-head">
+        <div>
+          <h3 id="detailTitle">Detalle</h3>
+          <p id="detailSub" class="detail-sub"></p>
+        </div>
+        <button class="detail-close" type="button" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="detail-guias">
+        <label for="detailGuias">Guías afectadas — cópialas para tu reclamo en Dropi</label>
+        <div class="detail-guias__row">
+          <textarea id="detailGuias" readonly spellcheck="false"></textarea>
+          <button id="detailCopy" class="detail-copy" type="button">Copiar guías</button>
+        </div>
+      </div>
+      <div class="detail-table-wrap">
+        <table class="detail-table">
+          <thead>
+            <tr>
+              <th>Guía</th><th>ID orden</th><th>Estado</th><th>Transportadora</th>
+              <th>Ciudad</th><th class="num">Días</th><th class="num">Recaudo</th>
+            </tr>
+          </thead>
+          <tbody id="detailBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- Librerías incluidas localmente: la app funciona sin conexión. -->
   <script src="./assets/vendor/xlsx.full.min.js"></script>
   <script src="./assets/vendor/chart.umd.min.js"></script>
