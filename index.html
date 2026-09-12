@@ -164,10 +164,12 @@
         <button class="detail-close" type="button" aria-label="Cerrar">✕</button>
       </div>
       <div class="detail-guias">
-        <label for="detailGuias">Guías afectadas — cópialas para tu reclamo en Dropi</label>
-        <div class="detail-guias__row">
-          <textarea id="detailGuias" readonly spellcheck="false"></textarea>
-          <button id="detailCopy" class="detail-copy" type="button">Copiar guías</button>
+        <label for="detailGuias">Guías afectadas — para tu reclamo en Dropi</label>
+        <textarea id="detailGuias" readonly spellcheck="false"></textarea>
+        <div class="detail-actions">
+          <button id="detailCopyGuias" class="detail-btn" type="button">Copiar guías</button>
+          <button id="detailCopyDetail" class="detail-btn" type="button">Copiar detalle (Excel)</button>
+          <button id="detailDownload" class="detail-btn detail-btn--primary" type="button">Descargar CSV</button>
         </div>
       </div>
       <div class="detail-table-wrap">

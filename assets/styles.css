@@ -277,10 +277,12 @@ body {
 .detail-close:hover { color: var(--text); border-color: var(--muted); }
 .detail-guias { padding: 14px 20px 6px; }
 .detail-guias label { display: block; font-size: 11px; letter-spacing: .3px; color: var(--muted-2); margin-bottom: 6px; }
-.detail-guias__row { display: flex; gap: 10px; align-items: stretch; }
-.detail-guias textarea { flex: 1 1 auto; height: 58px; resize: vertical; background: rgba(255,255,255,.03); border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 10px; color: var(--text); font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; }
-.detail-copy { flex: 0 0 auto; padding: 0 14px; border-radius: 8px; border: 1px solid var(--accent); background: rgba(245,130,46,.14); color: var(--accent); font-weight: 700; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
-.detail-copy:hover { background: rgba(245,130,46,.22); }
+.detail-guias textarea { display: block; width: 100%; height: 58px; resize: vertical; background: rgba(255,255,255,.03); border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 10px; color: var(--text); font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; }
+.detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.detail-btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,.03); color: var(--text); font-weight: 600; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.detail-btn:hover { border-color: var(--muted); background: rgba(255,255,255,.06); }
+.detail-btn--primary { border-color: var(--accent); background: rgba(245,130,46,.14); color: var(--accent); font-weight: 700; }
+.detail-btn--primary:hover { background: rgba(245,130,46,.22); }
 .detail-table-wrap { overflow: auto; padding: 8px 20px 20px; }
 .detail-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .detail-table th { position: sticky; top: 0; background: var(--panel); text-align: left; color: var(--muted-2); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -299,6 +301,5 @@ body {
 }
 @media (max-width: 680px) {
   .grid-kpi, .grid-strip, .blocks, .dec-summary, .carrier-grid { grid-template-columns: 1fr; }
-  .detail-guias__row { flex-direction: column; }
-  .detail-copy { padding: 10px 14px; }
+  .detail-btn { flex: 1 1 auto; text-align: center; }
 }

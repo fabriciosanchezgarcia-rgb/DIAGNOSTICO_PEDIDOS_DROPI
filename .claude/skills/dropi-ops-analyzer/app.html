@@ -286,10 +286,12 @@ body {
 .detail-close:hover { color: var(--text); border-color: var(--muted); }
 .detail-guias { padding: 14px 20px 6px; }
 .detail-guias label { display: block; font-size: 11px; letter-spacing: .3px; color: var(--muted-2); margin-bottom: 6px; }
-.detail-guias__row { display: flex; gap: 10px; align-items: stretch; }
-.detail-guias textarea { flex: 1 1 auto; height: 58px; resize: vertical; background: rgba(255,255,255,.03); border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 10px; color: var(--text); font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; }
-.detail-copy { flex: 0 0 auto; padding: 0 14px; border-radius: 8px; border: 1px solid var(--accent); background: rgba(245,130,46,.14); color: var(--accent); font-weight: 700; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
-.detail-copy:hover { background: rgba(245,130,46,.22); }
+.detail-guias textarea { display: block; width: 100%; height: 58px; resize: vertical; background: rgba(255,255,255,.03); border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 10px; color: var(--text); font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; }
+.detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.detail-btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,.03); color: var(--text); font-weight: 600; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.detail-btn:hover { border-color: var(--muted); background: rgba(255,255,255,.06); }
+.detail-btn--primary { border-color: var(--accent); background: rgba(245,130,46,.14); color: var(--accent); font-weight: 700; }
+.detail-btn--primary:hover { background: rgba(245,130,46,.22); }
 .detail-table-wrap { overflow: auto; padding: 8px 20px 20px; }
 .detail-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .detail-table th { position: sticky; top: 0; background: var(--panel); text-align: left; color: var(--muted-2); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -308,8 +310,7 @@ body {
 }
 @media (max-width: 680px) {
   .grid-kpi, .grid-strip, .blocks, .dec-summary, .carrier-grid { grid-template-columns: 1fr; }
-  .detail-guias__row { flex-direction: column; }
-  .detail-copy { padding: 10px 14px; }
+  .detail-btn { flex: 1 1 auto; text-align: center; }
 }
 
 
@@ -476,10 +477,12 @@ body {
         <button class="detail-close" type="button" aria-label="Cerrar">✕</button>
       </div>
       <div class="detail-guias">
-        <label for="detailGuias">Guías afectadas — cópialas para tu reclamo en Dropi</label>
-        <div class="detail-guias__row">
-          <textarea id="detailGuias" readonly spellcheck="false"></textarea>
-          <button id="detailCopy" class="detail-copy" type="button">Copiar guías</button>
+        <label for="detailGuias">Guías afectadas — para tu reclamo en Dropi</label>
+        <textarea id="detailGuias" readonly spellcheck="false"></textarea>
+        <div class="detail-actions">
+          <button id="detailCopyGuias" class="detail-btn" type="button">Copiar guías</button>
+          <button id="detailCopyDetail" class="detail-btn" type="button">Copiar detalle (Excel)</button>
+          <button id="detailDownload" class="detail-btn detail-btn--primary" type="button">Descargar CSV</button>
         </div>
       </div>
       <div class="detail-table-wrap">
@@ -1247,12 +1250,72 @@ function renderCarriers(m) {
  * 11b. Detalle de órdenes (drill-down para reclamar a Dropi)
  * ------------------------------------------------------------------ */
 
-let LAST_M = null;   // últimas métricas, para abrir el detalle bajo demanda
+let LAST_M = null;        // últimas métricas, para abrir el detalle bajo demanda
+let LAST_DETAIL = null;   // último detalle abierto {title, list}
 
 function escapeHtml(v) {
   return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
   });
+}
+
+// Columnas del detalle exportable (sin datos personales).
+const DETAIL_COLS = ["Guía", "ID orden", "Estado", "Grupo", "Transportadora", "Ciudad", "Departamento", "Días", "Recaudo", "Flete"];
+function detailRowValues(r) {
+  return [r.tracking || "", r.orden || "", r.estado || "", r.grupo || "", r.transportadora || "",
+    r.ciudad || "", r.departamento || "", r.dias || 0, Math.round(r.recaudo || 0), Math.round(r.flete || 0)];
+}
+// CSV con ';' (Excel es-CL) y BOM UTF-8 para que salgan bien los acentos.
+function detailToCsv(list) {
+  const cell = (v) => { v = String(v == null ? "" : v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const lines = [DETAIL_COLS.join(";")];
+  list.forEach((r) => lines.push(detailRowValues(r).map(cell).join(";")));
+  return "﻿" + lines.join("\r\n");
+}
+// TSV para pegar directo en Excel/Sheets como columnas.
+function detailToTsv(list) {
+  const cell = (v) => String(v == null ? "" : v).replace(/\t/g, " ").replace(/\r?\n/g, " ");
+  const lines = [DETAIL_COLS.join("\t")];
+  list.forEach((r) => lines.push(detailRowValues(r).map(cell).join("\t")));
+  return lines.join("\n");
+}
+function slugify(s) {
+  return String(s || "detalle").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "detalle";
+}
+function copyText(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+  let ok = false; try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  ta.remove(); return ok;
+}
+// Descarga el detalle como CSV. Devuelve un estado para el mensaje del botón.
+// 1) En el Artifact de claude.ai usa la capacidad `downloads` (window.claude).
+// 2) En modo standalone/hospedado cae al método clásico blob + <a download>.
+async function downloadDetailCsv() {
+  if (!LAST_DETAIL || !LAST_DETAIL.list.length) return "empty";
+  const csv = detailToCsv(LAST_DETAIL.list);
+  const filename = "dropi_" + slugify(LAST_DETAIL.title) + "_" + LAST_DETAIL.list.length + "ordenes.csv";
+
+  if (typeof window !== "undefined" && window.claude && typeof window.claude.use === "function") {
+    let dl = null;
+    try { dl = await window.claude.use("downloads"); } catch (e) { dl = null; }
+    if (dl) {
+      try { await dl.save({ filename: filename, data: csv }); return "saved"; }
+      catch (e) { return (e && e.code === "declined") ? "declined" : "blocked"; }
+    }
+  }
+
+  try {
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+    return "fallback";
+  } catch (e) { return "error"; }
 }
 
 // Devuelve el subconjunto de órdenes detrás de una tarjeta (decisión o transportadora).
@@ -1297,6 +1360,7 @@ function openDetail(spec) {
   const modal = document.getElementById("detailModal");
   if (!modal) return;
   const d = detailFor(LAST_M, spec);
+  LAST_DETAIL = { title: d.title, list: d.list };
   const totalRec = d.list.reduce((s, r) => s + r.recaudo, 0);
 
   document.getElementById("detailTitle").textContent = d.title;
@@ -1466,15 +1530,40 @@ function init() {
   });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDetail(); });
 
-  const copyBtn = document.getElementById("detailCopy");
-  if (copyBtn) {
-    copyBtn.addEventListener("click", () => {
-      const ta = document.getElementById("detailGuias");
-      ta.select(); ta.setSelectionRange(0, 99999);
-      let ok = false;
-      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
-      copyBtn.textContent = ok ? "¡Copiado!" : "Selecciona y copia (Ctrl+C)";
-      setTimeout(() => { copyBtn.textContent = "Copiar guías"; }, 1800);
+  function flash(btn, msg, base) {
+    if (!btn) return;
+    btn.textContent = msg;
+    setTimeout(() => { btn.textContent = base; }, 1800);
+  }
+
+  const copyGuiasBtn = document.getElementById("detailCopyGuias");
+  if (copyGuiasBtn) {
+    copyGuiasBtn.addEventListener("click", () => {
+      const ok = copyText(document.getElementById("detailGuias").value);
+      flash(copyGuiasBtn, ok ? "¡Copiado!" : "Selecciona y Ctrl+C", "Copiar guías");
+    });
+  }
+
+  const copyDetailBtn = document.getElementById("detailCopyDetail");
+  if (copyDetailBtn) {
+    copyDetailBtn.addEventListener("click", () => {
+      if (!LAST_DETAIL) return;
+      const ok = copyText(detailToTsv(LAST_DETAIL.list));
+      flash(copyDetailBtn, ok ? "¡Copiado! Pega en Excel" : "No se pudo copiar", "Copiar detalle (Excel)");
+    });
+  }
+
+  const downloadBtn = document.getElementById("detailDownload");
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", async () => {
+      downloadBtn.disabled = true;
+      const status = await downloadDetailCsv();
+      downloadBtn.disabled = false;
+      const msg = {
+        saved: "¡Descargado!", fallback: "Descargando…", declined: "Cancelado",
+        blocked: "Usa Copiar detalle", error: "No se pudo", empty: "Sin datos",
+      }[status] || "Descargar CSV";
+      flash(downloadBtn, msg, "Descargar CSV");
     });
   }
 }

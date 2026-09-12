@@ -745,12 +745,72 @@ function renderCarriers(m) {
  * 11b. Detalle de órdenes (drill-down para reclamar a Dropi)
  * ------------------------------------------------------------------ */
 
-let LAST_M = null;   // últimas métricas, para abrir el detalle bajo demanda
+let LAST_M = null;        // últimas métricas, para abrir el detalle bajo demanda
+let LAST_DETAIL = null;   // último detalle abierto {title, list}
 
 function escapeHtml(v) {
   return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
   });
+}
+
+// Columnas del detalle exportable (sin datos personales).
+const DETAIL_COLS = ["Guía", "ID orden", "Estado", "Grupo", "Transportadora", "Ciudad", "Departamento", "Días", "Recaudo", "Flete"];
+function detailRowValues(r) {
+  return [r.tracking || "", r.orden || "", r.estado || "", r.grupo || "", r.transportadora || "",
+    r.ciudad || "", r.departamento || "", r.dias || 0, Math.round(r.recaudo || 0), Math.round(r.flete || 0)];
+}
+// CSV con ';' (Excel es-CL) y BOM UTF-8 para que salgan bien los acentos.
+function detailToCsv(list) {
+  const cell = (v) => { v = String(v == null ? "" : v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const lines = [DETAIL_COLS.join(";")];
+  list.forEach((r) => lines.push(detailRowValues(r).map(cell).join(";")));
+  return "﻿" + lines.join("\r\n");
+}
+// TSV para pegar directo en Excel/Sheets como columnas.
+function detailToTsv(list) {
+  const cell = (v) => String(v == null ? "" : v).replace(/\t/g, " ").replace(/\r?\n/g, " ");
+  const lines = [DETAIL_COLS.join("\t")];
+  list.forEach((r) => lines.push(detailRowValues(r).map(cell).join("\t")));
+  return lines.join("\n");
+}
+function slugify(s) {
+  return String(s || "detalle").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "detalle";
+}
+function copyText(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+  let ok = false; try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  ta.remove(); return ok;
+}
+// Descarga el detalle como CSV. Devuelve un estado para el mensaje del botón.
+// 1) En el Artifact de claude.ai usa la capacidad `downloads` (window.claude).
+// 2) En modo standalone/hospedado cae al método clásico blob + <a download>.
+async function downloadDetailCsv() {
+  if (!LAST_DETAIL || !LAST_DETAIL.list.length) return "empty";
+  const csv = detailToCsv(LAST_DETAIL.list);
+  const filename = "dropi_" + slugify(LAST_DETAIL.title) + "_" + LAST_DETAIL.list.length + "ordenes.csv";
+
+  if (typeof window !== "undefined" && window.claude && typeof window.claude.use === "function") {
+    let dl = null;
+    try { dl = await window.claude.use("downloads"); } catch (e) { dl = null; }
+    if (dl) {
+      try { await dl.save({ filename: filename, data: csv }); return "saved"; }
+      catch (e) { return (e && e.code === "declined") ? "declined" : "blocked"; }
+    }
+  }
+
+  try {
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+    return "fallback";
+  } catch (e) { return "error"; }
 }
 
 // Devuelve el subconjunto de órdenes detrás de una tarjeta (decisión o transportadora).
@@ -795,6 +855,7 @@ function openDetail(spec) {
   const modal = document.getElementById("detailModal");
   if (!modal) return;
   const d = detailFor(LAST_M, spec);
+  LAST_DETAIL = { title: d.title, list: d.list };
   const totalRec = d.list.reduce((s, r) => s + r.recaudo, 0);
 
   document.getElementById("detailTitle").textContent = d.title;
@@ -964,15 +1025,40 @@ function init() {
   });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDetail(); });
 
-  const copyBtn = document.getElementById("detailCopy");
-  if (copyBtn) {
-    copyBtn.addEventListener("click", () => {
-      const ta = document.getElementById("detailGuias");
-      ta.select(); ta.setSelectionRange(0, 99999);
-      let ok = false;
-      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
-      copyBtn.textContent = ok ? "¡Copiado!" : "Selecciona y copia (Ctrl+C)";
-      setTimeout(() => { copyBtn.textContent = "Copiar guías"; }, 1800);
+  function flash(btn, msg, base) {
+    if (!btn) return;
+    btn.textContent = msg;
+    setTimeout(() => { btn.textContent = base; }, 1800);
+  }
+
+  const copyGuiasBtn = document.getElementById("detailCopyGuias");
+  if (copyGuiasBtn) {
+    copyGuiasBtn.addEventListener("click", () => {
+      const ok = copyText(document.getElementById("detailGuias").value);
+      flash(copyGuiasBtn, ok ? "¡Copiado!" : "Selecciona y Ctrl+C", "Copiar guías");
+    });
+  }
+
+  const copyDetailBtn = document.getElementById("detailCopyDetail");
+  if (copyDetailBtn) {
+    copyDetailBtn.addEventListener("click", () => {
+      if (!LAST_DETAIL) return;
+      const ok = copyText(detailToTsv(LAST_DETAIL.list));
+      flash(copyDetailBtn, ok ? "¡Copiado! Pega en Excel" : "No se pudo copiar", "Copiar detalle (Excel)");
+    });
+  }
+
+  const downloadBtn = document.getElementById("detailDownload");
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", async () => {
+      downloadBtn.disabled = true;
+      const status = await downloadDetailCsv();
+      downloadBtn.disabled = false;
+      const msg = {
+        saved: "¡Descargado!", fallback: "Descargando…", declined: "Cancelado",
+        blocked: "Usa Copiar detalle", error: "No se pudo", empty: "Sin datos",
+      }[status] || "Descargar CSV";
+      flash(downloadBtn, msg, "Descargar CSV");
     });
   }
 }
