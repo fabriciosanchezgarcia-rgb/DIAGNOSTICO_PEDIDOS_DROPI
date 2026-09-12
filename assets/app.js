@@ -218,6 +218,7 @@ function computeMetrics(rows) {
   const stateMoney = {};        // COD por estado
   const cityFuga = {};          // conteo de fuga por ciudad
   const carrierPending = {};    // recaudo pendiente por transportadora
+  const carriers = {};          // stats por transportadora (total, entregadas, cobrado, pendiente)
 
   for (const r of rows) {
     by[r.grupo] = (by[r.grupo] || 0) + 1;
@@ -225,6 +226,12 @@ function computeMetrics(rows) {
     if (r.recaudo > 0) recaudoCount++;
     if (r.grupo === "entregado") recaudoCobrado += r.recaudo;
     else carrierPending[r.transportadora] = (carrierPending[r.transportadora] || 0) + r.recaudo;
+
+    const ck = r.transportadora || "—";
+    const cc = carriers[ck] || (carriers[ck] = { total: 0, entregadas: 0, cobrado: 0, pendiente: 0 });
+    cc.total++;
+    if (r.grupo === "entregado") { cc.entregadas++; cc.cobrado += r.recaudo; }
+    else cc.pendiente += r.recaudo;
 
     if (r.flete > 0) { fleteSum += r.flete; fleteCount++; }
     if (r.grupo === "transito" && r.dias > 0) { diasSum += r.dias; diasCount++; }
@@ -254,6 +261,16 @@ function computeMetrics(rows) {
   const topCity = Object.entries(cityFuga).sort((a, b) => b[1] - a[1])[0];
   const topCarrier = Object.entries(carrierPending).sort((a, b) => b[1] - a[1])[0];
 
+  // Cumplimiento de entrega por transportadora, ordenado por volumen desc.
+  const carrierStats = Object.entries(carriers).map(function (e) {
+    const c = e[1];
+    return {
+      name: e[0], total: c.total, entregadas: c.entregadas,
+      cumplimiento: c.total ? (c.entregadas / c.total) * 100 : 0,
+      cobrado: c.cobrado, pendiente: c.pendiente,
+    };
+  }).sort((a, b) => b.total - a.total);
+
   return {
     total, entregadas, enTransito, novedad, canceladas, extraviadas, fuga,
     backlog: enTransito + novedad,
@@ -261,7 +278,7 @@ function computeMetrics(rows) {
     ticketPromedio, fletePromedio, diasPromedio,
     cumplimiento, fugaPct, cancelPct, presionFlete,
     pctTransito: pct(enTransito), pctEntregadas: cumplimiento, pctExtraviadas: pct(extraviadas),
-    stateCount, stateMoney, cityFuga, carrierPending,
+    stateCount, stateMoney, cityFuga, carrierPending, carrierStats,
     topFugaCity: topCity ? topCity[0] : "—",
     topPendingCarrier: topCarrier ? topCarrier[0] : "—",
     rows,
@@ -696,6 +713,34 @@ function renderCharts(m, series) {
  * 11. Orquestación
  * ------------------------------------------------------------------ */
 
+// Recuadro de cumplimiento de entrega por transportadora.
+function renderCarriers(m) {
+  const sec = document.getElementById("carriers");
+  const grid = document.getElementById("carrierGrid");
+  if (!sec || !grid) return;
+  const list = m.carrierStats || [];
+  if (!list.length) { sec.hidden = true; return; }
+  sec.hidden = false;
+  grid.innerHTML = list.map(function (c) {
+    const tone = c.cumplimiento >= TH.cumplSaludable ? "green"
+      : (c.cumplimiento >= TH.cumplRiesgo ? "yellow" : "red");
+    const w = Math.min(100, Math.max(0, c.cumplimiento)).toFixed(1);
+    return `
+      <div class="carrier-tile carrier-tile--${tone}">
+        <div class="carrier-tile__top">
+          <span class="carrier-tile__name">${c.name}</span>
+          <span class="carrier-tile__badge">${fmtInt(c.total)} pedidos</span>
+        </div>
+        <div class="carrier-tile__pct">${fmtPct(c.cumplimiento)}</div>
+        <div class="carrier-tile__bar"><span style="width:${w}%"></span></div>
+        <div class="carrier-tile__foot">
+          <span>${fmtInt(c.entregadas)}/${fmtInt(c.total)} entregadas</span>
+          <span>${fmtMoney(c.pendiente)} colgado</span>
+        </div>
+      </div>`;
+  }).join("");
+}
+
 function analyze(rows) {
   const m = computeMetrics(rows);
   const series = computeSeries(rows);
@@ -704,6 +749,7 @@ function analyze(rows) {
 
   renderKpis(m, alerts);
   renderStrip(m);
+  renderCarriers(m);
   renderDecisions(decisions);
   renderAlerts(alerts);
   renderTable(m);
