@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Billetera Dropi · P&L</title>
+<meta name="description" content="Pega el Historial de Cartera de Dropi y obtén el P&L real: ganancias, devoluciones, fletes, software y utilidad operativa, con cierre por publicidad." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap" />
+<style>
+:root{
+  --bg:#f4f6fa; --surface:#ffffff; --surface-2:#eef1f7; --border:#e1e6ef;
+  --ink:#141821; --ink-soft:#586074; --ink-faint:#8a93a6;
+  --accent:#3f63f0; --accent-soft:rgba(63,99,240,.12);
+  --good:#12a06a; --good-soft:rgba(18,160,106,.14);
+  --warn:#d98a1f; --warn-soft:rgba(217,138,31,.14);
+  --bad:#d83a34; --bad-soft:rgba(216,58,52,.12);
+  --shadow:0 1px 2px rgba(18,24,40,.04), 0 14px 32px -16px rgba(18,24,40,.16);
+  --radius:15px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0b0e15; --surface:#131824; --surface-2:#1a2130; --border:#28324a;
+  --ink:#eef2fb; --ink-soft:#8f9ab2; --ink-faint:#6a7590;
+  --accent:#6a8bff; --accent-soft:rgba(106,139,255,.16);
+  --good:#33c78a; --good-soft:rgba(51,199,138,.16);
+  --warn:#eab24a; --warn-soft:rgba(234,178,74,.16);
+  --bad:#ff5b52; --bad-soft:rgba(255,91,82,.16);
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 18px 40px -18px rgba(0,0,0,.7);
+}}
+:root[data-theme="dark"]{
+  --bg:#0b0e15; --surface:#131824; --surface-2:#1a2130; --border:#28324a;
+  --ink:#eef2fb; --ink-soft:#8f9ab2; --ink-faint:#6a7590;
+  --accent:#6a8bff; --accent-soft:rgba(106,139,255,.16);
+  --good:#33c78a; --good-soft:rgba(51,199,138,.16);
+  --warn:#eab24a; --warn-soft:rgba(234,178,74,.16);
+  --bad:#ff5b52; --bad-soft:rgba(255,91,82,.16);
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 18px 40px -18px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Manrope",system-ui,sans-serif;font-size:15px;line-height:1.5}
+h1,h2,h3{font-family:"Sora","Manrope",sans-serif;margin:0;line-height:1.1;letter-spacing:-.02em}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{max-width:920px;margin:0 auto;padding:18px}
+.top{display:flex;align-items:center;gap:11px;margin-bottom:6px}
+.top__ic{width:38px;height:38px;border-radius:11px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:0 0 auto}
+.top h1{font-size:19px;font-weight:800}
+.top span{font-size:12.5px;color:var(--ink-soft)}
+
+.step{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-top:14px}
+.step h3{font-size:14px;font-weight:700;margin-bottom:8px}
+.step h3 b{color:var(--accent)}
+textarea{width:100%;min-height:150px;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;color:var(--ink);background:var(--surface-2);border:1.5px solid var(--border);border-radius:11px;padding:12px;outline:none;resize:vertical}
+textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.btn{appearance:none;border:0;cursor:pointer;font-family:"Sora",sans-serif;font-weight:700;border-radius:11px;padding:12px 18px;font-size:14.5px;color:#fff;background:var(--accent)}
+.btn:hover{filter:brightness(1.06)}
+.btn--ghost{background:var(--surface-2);color:var(--ink-soft);border:1.5px solid var(--border)}
+.hint{font-size:12px;color:var(--ink-faint)}
+.adsrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.adsrow label{font-size:13px;font-weight:600;color:var(--ink-soft)}
+.adsrow input{font:inherit;color:var(--ink);background:var(--surface-2);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;width:180px;font-variant-numeric:tabular-nums}
+.adsrow input:focus{border-color:var(--accent);outline:none}
+
+#out{margin-top:14px}
+.pnl{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.pnl .prow{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)}
+.pnl .prow .lab{font-size:14px}
+.pnl .prow .lab small{display:block;color:var(--ink-faint);font-size:11.5px}
+.pnl .prow .cnt{font-size:12px;color:var(--ink-faint);text-align:right;font-variant-numeric:tabular-nums}
+.pnl .prow .amt{font-family:"Sora",sans-serif;font-weight:700;font-size:15px;text-align:right;font-variant-numeric:tabular-nums;min-width:120px}
+.pos{color:var(--good)} .neg{color:var(--bad)} .mut{color:var(--ink-soft)}
+.pnl .sub{background:var(--surface-2);font-weight:800}
+.pnl .grand{background:var(--accent-soft)}
+.pnl .grand .lab{font-family:"Sora",sans-serif;font-weight:800;font-size:15px}
+.pnl .grand .amt{font-size:20px}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;margin-left:6px}
+.badge.g{background:var(--good-soft);color:var(--good)} .badge.b{background:var(--bad-soft);color:var(--bad)}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+@media(max-width:640px){.kpis{grid-template-columns:1fr}}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:var(--shadow)}
+.kpi .l{font-size:12px;color:var(--ink-soft);font-weight:600}
+.kpi .v{font-family:"Sora",sans-serif;font-weight:800;font-size:22px;margin-top:5px}
+.note{font-size:12px;color:var(--ink-soft);background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--warn);border-radius:10px;padding:12px 14px;margin-top:14px}
+.err{color:var(--bad);font-size:13px;margin-top:8px;font-weight:600}
+footer{padding:22px 0 10px;text-align:center;color:var(--ink-faint);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="top__ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5"/></svg></div>
+    <div><h1>Billetera Dropi · P&L</h1><span>Pega tu Historial de Cartera y calcula la utilidad real</span></div>
+  </div>
+
+  <div class="step">
+    <h3><b>1.</b> Pega aquí el texto del Historial de Cartera</h3>
+    <p class="hint" style="margin:0 0 8px">En Dropi → Historial de Cartera, selecciona todo (Ctrl+A) y copia (Ctrl+C). Pega abajo. Puedes pegar las 3 páginas una tras otra — los duplicados se eliminan solos por N° de transacción.</p>
+    <textarea id="input" placeholder="17396058  24/07/2026 12:55 p. m.  SALIDA  -$ 849  $ 5.085  USO DE SOFTWARE FENIX VENTURE ..."></textarea>
+    <div class="row">
+      <button class="btn" id="calc">Calcular P&L</button>
+      <button class="btn btn--ghost" id="clear">Limpiar</button>
+      <span class="hint" id="status"></span>
+    </div>
+    <div class="err" id="err" hidden></div>
+  </div>
+
+  <div class="step">
+    <h3><b>2.</b> Gasto de publicidad Meta (opcional, para cerrar el número)</h3>
+    <div class="adsrow">
+      <label for="ads">Gasto Meta del mismo período (CLP):</label>
+      <input id="ads" type="text" inputmode="numeric" placeholder="ej: 6.000.000" />
+      <span class="hint">Se resta al final. Déjalo vacío si solo quieres el resultado dentro de Dropi.</span>
+    </div>
+  </div>
+
+  <div id="out"></div>
+
+  <div class="note">📌 <strong>Cómo se lee:</strong> las <strong>ENTRADAS por GANANCIA</strong> ya vienen netas de proveedor, flete y comisión de Dropi. Las <strong>SALIDAS</strong> (devoluciones, flete inicial, software, nuevas órdenes) son costos. Los <strong>RETIROS</strong> son plata que sacaste (no es costo, es informativo). Las <strong>RECARGAS/transferencias entrantes</strong> son capital que metiste, no ventas. El gasto de <strong>Meta se paga por fuera de Dropi</strong>, por eso se ingresa aparte.</div>
+
+  <footer>Analizador de Billetera Dropi · Todo se procesa en tu navegador · Nada se sube a ningún servidor.</footer>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const CLP=v=>(v<0?"-$":"$")+Math.abs(Math.round(v)).toLocaleString("es-CL");
+function parseMonto(s){
+  // "-$ 1.234.567" -> -1234567
+  const neg=/-/.test(s);
+  const n=parseInt((s.replace(/[^\d]/g,''))||"0",10);
+  return neg?-n:n;
+}
+
+// categorías
+const CATS=[
+  {key:"ganancia",  test:/GANANCIA EN LA ORDEN/i,           label:"Ganancia por pedido entregado", kind:"in",  cost:false},
+  {key:"devolucion",test:/DEVOLUCI/i,                       label:"Devoluciones (entrega no efectiva)", kind:"out", cost:true},
+  {key:"flete",     test:/FLETE INICIAL/i,                  label:"Flete inicial", kind:"out", cost:true},
+  {key:"software",  test:/USO DE SOFTWARE/i,                label:"Software (Fenix Ventures)", kind:"out", cost:true},
+  {key:"nuevaorden",test:/NUEVA ORDEN/i,                    label:"Nueva orden (sin recaudo)", kind:"out", cost:true},
+  {key:"garantia",  test:/GARANTIA|GARANTÍA/i,              label:"Garantías", kind:"both", cost:false},
+  {key:"retiro",    test:/RETIRO DE SALDO/i,                label:"Retiros de saldo (plata que sacaste)", kind:"out", cost:false},
+  {key:"transfout", test:/TRANSFERENCIA DE WALLET AL/i,     label:"Transferencias enviadas", kind:"out", cost:false},
+  {key:"capital",   test:/RECARGA|TRANSFERENCIA DE WALLET DESDE/i, label:"Recargas / capital ingresado", kind:"in", cost:false},
+];
+function categorize(desc){
+  for(const c of CATS) if(c.test.test(desc)) return c;
+  return {key:"otros",label:"Otros",kind:"both",cost:false};
+}
+
+function parse(text){
+  // Captura: id (6+ dígitos) ... ENTRADA|SALIDA ... monto ... montoPrevio ... descripción
+  // tolerante a tabs/saltos de línea/espacios
+  const re=/(\d{6,})[\t ]+\d{2}\/\d{2}\/\d{4}[^\n]*?\n?\s*(ENTRADA|SALIDA)\s*\n?\s*(-?\$\s?[\d.]+)[\t ]+\$\s?[\d.]+[\t ]+([^\n\t]+)/gi;
+  const seen=new Set(); const recs=[]; let m;
+  while((m=re.exec(text))!==null){
+    const id=m[1];
+    if(seen.has(id)) continue;
+    seen.add(id);
+    recs.push({id, tipo:m[2].toUpperCase(), monto:parseMonto(m[3]), desc:m[4].trim()});
+  }
+  return recs;
+}
+
+function render(recs, ads){
+  if(!recs.length){ $("#err").hidden=false; $("#err").textContent="No se detectaron transacciones. Asegúrate de copiar la tabla completa (con las columnas Tipo, Monto, Descripción)."; $("#out").innerHTML=""; return; }
+  $("#err").hidden=true;
+  const agg={}; CATS.forEach(c=>agg[c.key]={n:0,sum:0,label:c.label,cost:c.cost,kind:c.kind}); agg.otros={n:0,sum:0,label:"Otros",cost:false,kind:"both"};
+  recs.forEach(r=>{ const c=categorize(r.desc); const a=agg[c.key]; a.n++; a.sum+=Math.abs(r.monto); });
+
+  const ganancia=agg.ganancia.sum;
+  const costos=agg.devolucion.sum+agg.flete.sum+agg.software.sum+agg.nuevaorden.sum;
+  const opAntes=ganancia-costos;
+  const final=opAntes-(ads||0);
+
+  const line=(a,signPos)=>`<div class="prow"><div class="lab">${signPos>0?'+ ':'− '}${a.label}</div><div class="cnt">${a.n} mov.</div><div class="amt ${signPos>0?'pos':'neg'}">${signPos>0?'':'−'}${CLP(a.sum)}</div></div>`;
+
+  let html=`<div class="kpis">
+    <div class="kpi"><div class="l">✅ Transacciones únicas</div><div class="v tnum">${recs.length}</div></div>
+    <div class="kpi"><div class="l">💰 Ingresos por ganancia</div><div class="v tnum pos">${CLP(ganancia)}</div></div>
+    <div class="kpi"><div class="l">📉 Costos operativos</div><div class="v tnum neg">${CLP(costos)}</div></div>
+  </div>`;
+
+  html+=`<div class="pnl" style="margin-top:14px">
+    <div class="prow"><div class="lab">Ingresos por ganancia (entregados)<small>ya netos de proveedor + flete + comisión</small></div><div class="cnt">${agg.ganancia.n} mov.</div><div class="amt pos">+${CLP(ganancia)}</div></div>
+    ${line(agg.devolucion,-1)}
+    ${line(agg.flete,-1)}
+    ${line(agg.software,-1)}
+    ${line(agg.nuevaorden,-1)}
+    <div class="prow sub"><div class="lab">= Utilidad operativa (antes de publicidad)</div><div class="cnt"></div><div class="amt ${opAntes>=0?'pos':'neg'}">${CLP(opAntes)}</div></div>
+    <div class="prow"><div class="lab">− Publicidad Meta ${ads?'':'<small>(ingresa el monto arriba)</small>'}</div><div class="cnt"></div><div class="amt neg">${ads?('−'+CLP(ads)):'—'}</div></div>
+    <div class="prow grand"><div class="lab">= RESULTADO FINAL ${ads?(final>=0?'<span class="badge g">Ganancia</span>':'<span class="badge b">Pérdida</span>'):''}</div><div class="cnt"></div><div class="amt ${final>=0?'pos':'neg'}">${ads?CLP(final):'falta ads'}</div></div>
+  </div>`;
+
+  // informativos
+  html+=`<div class="pnl" style="margin-top:14px">
+    <div class="prow" style="border-bottom:1px solid var(--border)"><div class="lab mut">ℹ️ Retiros de saldo (plata que sacaste, no es costo)</div><div class="cnt">${agg.retiro.n} mov.</div><div class="amt mut">${CLP(agg.retiro.sum)}</div></div>
+    <div class="prow" style="border-bottom:1px solid var(--border)"><div class="lab mut">ℹ️ Recargas / capital ingresado</div><div class="cnt">${agg.capital.n} mov.</div><div class="amt mut">${CLP(agg.capital.sum)}</div></div>
+    <div class="prow"><div class="lab mut">ℹ️ Transferencias enviadas · Garantías · Otros</div><div class="cnt">${agg.transfout.n+agg.garantia.n+agg.otros.n} mov.</div><div class="amt mut">${CLP(agg.transfout.sum+agg.garantia.sum+agg.otros.sum)}</div></div>
+  </div>`;
+
+  $("#out").innerHTML=html;
+  $("#status").textContent=`Detectadas ${recs.length} transacciones únicas.`;
+}
+
+let lastRecs=[];
+$("#calc").addEventListener("click",()=>{
+  lastRecs=parse($("#input").value);
+  render(lastRecs, adsVal());
+});
+function adsVal(){ return parseInt(($("#ads").value||"").replace(/[^\d]/g,'')||"0",10); }
+$("#ads").addEventListener("input",()=>{ if(lastRecs.length) render(lastRecs, adsVal()); });
+$("#clear").addEventListener("click",()=>{ $("#input").value=""; $("#out").innerHTML=""; $("#status").textContent=""; $("#err").hidden=true; lastRecs=[]; });
+</script>
+</body>
+</html>
