@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Meta Ads · Histórico</title>
+<meta name="description" content="Dashboard histórico de campañas de Meta Ads con ajuste de ROAS real para pago contra entrega (COD)." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#f4f6fa; --surface:#ffffff; --surface-2:#eef1f7; --border:#e1e6ef;
+  --ink:#141821; --ink-soft:#586074; --ink-faint:#8a93a6;
+  --accent:#3f63f0; --accent-soft:rgba(63,99,240,.12);
+  --good:#12a06a; --good-soft:rgba(18,160,106,.14);
+  --warn:#d98a1f; --warn-soft:rgba(217,138,31,.14);
+  --bad:#d83a34; --bad-soft:rgba(216,58,52,.12);
+  --grid:rgba(20,24,33,.08);
+  --shadow:0 1px 2px rgba(18,24,40,.04), 0 14px 32px -16px rgba(18,24,40,.16);
+  --radius:15px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b0e15; --surface:#131824; --surface-2:#1a2130; --border:#28324a;
+    --ink:#eef2fb; --ink-soft:#8f9ab2; --ink-faint:#6a7590;
+    --accent:#6a8bff; --accent-soft:rgba(106,139,255,.16);
+    --good:#33c78a; --good-soft:rgba(51,199,138,.16);
+    --warn:#eab24a; --warn-soft:rgba(234,178,74,.16);
+    --bad:#ff5b52; --bad-soft:rgba(255,91,82,.16);
+    --grid:rgba(255,255,255,.07);
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 18px 40px -18px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b0e15; --surface:#131824; --surface-2:#1a2130; --border:#28324a;
+  --ink:#eef2fb; --ink-soft:#8f9ab2; --ink-faint:#6a7590;
+  --accent:#6a8bff; --accent-soft:rgba(106,139,255,.16);
+  --good:#33c78a; --good-soft:rgba(51,199,138,.16);
+  --warn:#eab24a; --warn-soft:rgba(234,178,74,.16);
+  --bad:#ff5b52; --bad-soft:rgba(255,91,82,.16);
+  --grid:rgba(255,255,255,.07);
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 18px 40px -18px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.5}
+h1,h2,h3{font-family:"Sora","Manrope",sans-serif;margin:0;line-height:1.1;letter-spacing:-.02em}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:18px}
+
+.top{border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:20}
+.top__in{max-width:1180px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:11px}
+.brand__ic{width:36px;height:36px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:0 0 auto}
+.brand h1{font-size:17px;font-weight:800}
+.brand span{font-size:12px;color:var(--ink-soft)}
+.top__meta{font-size:12px;color:var(--ink-soft);text-align:right}
+
+.section-title{font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);margin:26px 0 12px}
+
+/* KPI grid */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media (max-width:860px){.kpis{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:480px){.kpis{grid-template-columns:1fr}}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.kpi__label{font-size:12px;color:var(--ink-soft);font-weight:600;display:flex;align-items:center;gap:6px}
+.kpi__val{font-family:"Sora",sans-serif;font-weight:800;font-size:26px;margin-top:8px}
+.kpi__sub{font-size:12px;color:var(--ink-faint);margin-top:3px}
+.kpi--accent{background:linear-gradient(160deg,var(--accent-soft),transparent),var(--surface)}
+.kpi--good .kpi__val{color:var(--good)}
+.kpi--bad .kpi__val{color:var(--bad)}
+
+/* COD panel */
+.cod{margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.cod__head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between}
+.cod__head h3{font-size:16px;font-weight:700}
+.cod__badge{font-size:11.5px;font-weight:700;color:var(--warn);background:var(--warn-soft);padding:4px 10px;border-radius:100px}
+.slider-row{display:flex;align-items:center;gap:14px;margin-top:14px;flex-wrap:wrap}
+.slider-row label{font-size:13px;color:var(--ink-soft);font-weight:600}
+.slider-row input[type=range]{flex:1;min-width:180px;accent-color:var(--accent)}
+.slider-val{font-family:"Sora",sans-serif;font-weight:800;font-size:18px;color:var(--accent);min-width:52px;text-align:right}
+.cmp{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+@media (max-width:620px){.cmp{grid-template-columns:1fr}}
+.cmp__cell{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:13px}
+.cmp__cell .t{font-size:12px;color:var(--ink-soft);font-weight:600}
+.cmp__cell .two{display:flex;align-items:baseline;gap:10px;margin-top:6px;flex-wrap:wrap}
+.cmp__cell .ap{font-size:14px;color:var(--ink-faint);text-decoration:line-through}
+.cmp__cell .re{font-family:"Sora",sans-serif;font-weight:800;font-size:22px}
+
+/* charts */
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:860px){.charts{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.card h3{font-size:15px;font-weight:700}
+.card .csub{font-size:12px;color:var(--ink-soft);margin-top:2px;margin-bottom:12px}
+.chart-box{position:relative;height:320px}
+.chart-box--tall{height:420px}
+
+/* table */
+.tablecard{margin-top:16px}
+.tbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.tbar input[type=search]{flex:1;min-width:160px;font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;outline:none}
+.tbar input:focus{border-color:var(--accent)}
+.chip{font-size:12.5px;font-weight:600;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--border);border-radius:100px;padding:7px 13px;cursor:pointer}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:9px 11px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border)}
+th:first-child,td:first-child{text-align:left;white-space:normal;min-width:190px}
+th{font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-faint);cursor:pointer;user-select:none;position:sticky;top:0;background:var(--surface)}
+th:hover{color:var(--accent)}
+tbody tr:hover{background:var(--surface-2)}
+.pill{display:inline-block;padding:2px 9px;border-radius:100px;font-weight:700;font-size:12px}
+.pill.g{background:var(--good-soft);color:var(--good)}
+.pill.w{background:var(--warn-soft);color:var(--warn)}
+.pill.b{background:var(--bad-soft);color:var(--bad)}
+.acc{font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--border)}
+
+.note{font-size:12.5px;color:var(--ink-soft);background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--warn);border-radius:10px;padding:12px 14px;margin-top:16px}
+footer{padding:26px 18px 40px;text-align:center;color:var(--ink-faint);font-size:12px}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="top__in">
+    <div class="brand">
+      <div class="brand__ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg></div>
+      <div><h1>Meta Ads · Histórico</h1><span>Cuenta N°1 + N°2 · 66 campañas</span></div>
+    </div>
+    <div class="top__meta">Período informe: 23 ago 2023 – 23 sep 2026<br>Moneda: CLP · Datos de Meta Ads</div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="section-title">Resumen general (según Meta)</div>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="cod">
+    <div class="cod__head">
+      <h3>⚖️ Ajuste a la realidad del pago contra entrega (COD)</h3>
+      <span class="cod__badge">Meta cuenta pedidos generados, no entregados</span>
+    </div>
+    <div class="slider-row">
+      <label for="deliv">Tasa de entrega real (delivery rate):</label>
+      <input type="range" id="deliv" min="20" max="100" value="46" step="1" />
+      <span class="slider-val" id="delivVal">46%</span>
+    </div>
+    <div class="cmp" id="cmp"></div>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:14px">Mueve el deslizador según la tasa de entrega real de tu operación en Dropi. El 46% es tu dato de Diciembre 2025. El ROAS real es la única cifra honesta en COD.</p>
+  </div>
+
+  <div class="section-title">Análisis visual</div>
+  <div class="charts">
+    <div class="card"><h3>Top campañas por gasto</h3><div class="csub">Dónde se fue el presupuesto (spend)</div><div class="chart-box chart-box--tall"><canvas id="cSpend"></canvas></div></div>
+    <div class="card"><h3>Mejor ROAS (≥10 compras)</h3><div class="csub">Rentabilidad aparente por campaña</div><div class="chart-box chart-box--tall"><canvas id="cRoas"></canvas></div></div>
+    <div class="card"><h3>Gasto por cuenta</h3><div class="csub">Cuenta N°1 vs N°2</div><div class="chart-box"><canvas id="cAcc"></canvas></div></div>
+    <div class="card"><h3>Mapa de eficiencia</h3><div class="csub">Gasto (x) vs ROAS (y) · tamaño = compras · línea = break-even</div><div class="chart-box"><canvas id="cScatter"></canvas></div></div>
+  </div>
+
+  <div class="section-title">Todas las campañas</div>
+  <div class="card tablecard">
+    <div class="tbar">
+      <input type="search" id="search" placeholder="Buscar campaña…" />
+      <span class="chip on" data-acc="all">Todas</span>
+      <span class="chip" data-acc="CP1">Cuenta N°1</span>
+      <span class="chip" data-acc="CP2">Cuenta N°2</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th data-k="name">Campaña</th>
+          <th data-k="acc">Cta</th>
+          <th data-k="spend">Gasto</th>
+          <th data-k="purch">Compras</th>
+          <th data-k="cpa">CPA</th>
+          <th data-k="roas">ROAS</th>
+          <th data-k="rev">Ingreso Meta</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="note">📌 <strong>Cómo leer esto:</strong> el ROAS y las "compras" vienen de Meta y cuentan <strong>pedidos generados</strong> (formulario/pixel). En pago contra entrega, lo que importa es cuántos se <strong>entregan y cobran</strong> — por eso el panel de arriba ajusta a la realidad con tu tasa de entrega de Dropi. Para el ROAS real exacto por producto, se cruza cada campaña con las entregas de Dropi de ese producto.</div>
+</div>
+
+<footer>Dashboard generado desde tus exports de Meta Ads · Todo el procesamiento ocurre en tu navegador.</footer>
+
+<script>
+const DATA = [{"name": "Interacción DOM 27 ABR.", "acc": "CP1", "spend": 8283, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "Tráfico 12 OCT", "acc": "CP1", "spend": 5595, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "PICADORA_VERDURAS_ELECTRICA", "acc": "CP1", "spend": 9006, "purch": 1, "cpa": 9006, "roas": 2.77, "rev": 24990}, {"name": "TRENSADOR_CABELLO_26_SEP_ABO_TEST", "acc": "CP1", "spend": 6658, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "CEPILLO_LIMPIEZA_7_1_26_09_TESTEO_ABO", "acc": "CP1", "spend": 6303, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "FAJA_TANGA_27_09_TEST_ABO", "acc": "CP1", "spend": 29814, "purch": 2, "cpa": 14907, "roas": 2.01, "rev": 59980}, {"name": "PARCHE_KINOKI_28_09_25_TEST_ABO", "acc": "CP1", "spend": 35863, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "TECLADO_PLEGABLE_28_09_TEST_ABO", "acc": "CP1", "spend": 22927, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "ANTENA_TV_28_09_TESTEO_ABO", "acc": "CP1", "spend": 272496, "purch": 19, "cpa": 14342, "roas": 1.71, "rev": 465870}, {"name": "MINI_LINTERNA_LED_28_09_TESTEO_ABO", "acc": "CP1", "spend": 13694, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "DUCHA_PORTATIL_CAMPING_28_09_TEST_ABO", "acc": "CP1", "spend": 7975, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "COJIN_GEL_29_09_TEST_ABO", "acc": "CP1", "spend": 21616, "purch": 1, "cpa": 21616, "roas": 1.15, "rev": 24900}, {"name": "PAPEL_VINIL_(GANADOR)_01_09_ABO", "acc": "CP1", "spend": 11341, "purch": 1, "cpa": 11341, "roas": 2.64, "rev": 29990}, {"name": "PICADORA_ELECTRICA_(GANADOR)_01_10_ABO", "acc": "CP1", "spend": 24600, "purch": 1, "cpa": 24600, "roas": 1.63, "rev": 39990}, {"name": "POLVO_CAÑERIAS_04_10_ABO", "acc": "CP1", "spend": 22362, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "CLAVOS_FULMINANTES_04_10_ABO", "acc": "CP1", "spend": 10772, "purch": 1, "cpa": 10772, "roas": 3.76, "rev": 40485}, {"name": "FAJA_COMPLETA_06_10_ABO", "acc": "CP1", "spend": 296693, "purch": 36, "cpa": 8241, "roas": 3.72, "rev": 1103215}, {"name": "CAMARA_SOLAR_06_10_ABO", "acc": "CP1", "spend": 7831, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "LUZ_LED_FOCO_06_10_ABO", "acc": "CP1", "spend": 31353, "purch": 6, "cpa": 5226, "roas": 3.83, "rev": 119940}, {"name": "Corre_pasillos_dino_07_10_ABO", "acc": "CP1", "spend": 6801, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "CAPSULA_DEOS_OLOR", "acc": "CP1", "spend": 7406, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "BAÑO_BEBE_9_10_ABO", "acc": "CP1", "spend": 17812, "purch": 1, "cpa": 17812, "roas": 2.36, "rev": 41990}, {"name": "HIDRO_PORTATIL_10_10_ABO", "acc": "CP1", "spend": 15694, "purch": 1, "cpa": 15694, "roas": 2.55, "rev": 39990}, {"name": "COMPAÑA_RAIZ_BODY_FAJA_12_10_ABO", "acc": "CP1", "spend": 2589594, "purch": 646, "cpa": 4009, "roas": 8.3, "rev": 21505449}, {"name": "NEBULIZADOR_12_10_ABO", "acc": "CP1", "spend": 90440, "purch": 12, "cpa": 7537, "roas": 3.72, "rev": 336150}, {"name": "AMPLIFICADOR_AUDÍFONO_17_10_ABO", "acc": "CP1", "spend": 28747, "purch": 4, "cpa": 7187, "roas": 3.98, "rev": 114500}, {"name": "TENDEDERO_RETRACTIL", "acc": "CP1", "spend": 44276, "purch": 5, "cpa": 8855, "roas": 4.12, "rev": 182427}, {"name": "SOPORTE_CELU_19_10_ABO", "acc": "CP1", "spend": 9798, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "IRRIGADOR_BUC_19_10_ABO", "acc": "CP1", "spend": 14694, "purch": 3, "cpa": 4898, "roas": 5.49, "rev": 80700}, {"name": "PICADORA_VERDURAS_20_10", "acc": "CP1", "spend": 1207111, "purch": 290, "cpa": 4162, "roas": 5.12, "rev": 6183880}, {"name": "ACEITE_OREGANO_25_10", "acc": "CP1", "spend": 1068713, "purch": 234, "cpa": 4567, "roas": 7.2, "rev": 7694060}, {"name": "PASTA_OBSESSIVE_29_10_ABO", "acc": "CP1", "spend": 21115, "purch": 2, "cpa": 10558, "roas": 2.18, "rev": 45980}, {"name": "SERUM_PESTAÑAS_02_11_ABO", "acc": "CP1", "spend": 678336, "purch": 163, "cpa": 4162, "roas": 5.72, "rev": 3883150}, {"name": "KIT_PESTAÑAS_CEJAS_02_11", "acc": "CP1", "spend": 10103, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "KIT_PESTAÑAS_MAGNÉTICAS_02_11", "acc": "CP1", "spend": 13500, "purch": 1, "cpa": 13500, "roas": 1.47, "rev": 19900}, {"name": "LUZ_LED_NAVIDAD_5_11_ABO", "acc": "CP1", "spend": 571099, "purch": 82, "cpa": 6965, "roas": 3.91, "rev": 2232700}, {"name": "FULL_BODY_9_11_ABO", "acc": "CP1", "spend": 976030, "purch": 207, "cpa": 4715, "roas": 5.71, "rev": 5574290}, {"name": "alisador_verde_13_nov_abo", "acc": "CP1", "spend": 63371, "purch": 8, "cpa": 7921, "roas": 2.89, "rev": 183200}, {"name": "ASPIRADORA_VERTICAL", "acc": "CP1", "spend": 15423, "purch": 1, "cpa": 15423, "roas": 1.81, "rev": 27900}, {"name": "SHILAJIT_19_11_ABO", "acc": "CP1", "spend": 15127, "purch": 2, "cpa": 7564, "roas": 4.12, "rev": 62250}, {"name": "FAJA_JAVI_COMPLETA_23_11", "acc": "CP1", "spend": 303612, "purch": 56, "cpa": 5422, "roas": 5.0, "rev": 1518400}, {"name": "ESCALERA_SWISS_4_PELDAÑOS", "acc": "CP1", "spend": 19415, "purch": 1, "cpa": 19415, "roas": 1.9, "rev": 36900}, {"name": "CBO_FAJA_SHORT_JAVI_27_NOV", "acc": "CP1", "spend": 335724, "purch": 58, "cpa": 5788, "roas": 5.02, "rev": 1685650}, {"name": "SHILAJIT_RESINA_27_NOV_ABO", "acc": "CP1", "spend": 196542, "purch": 79, "cpa": 2488, "roas": 11.47, "rev": 2253450}, {"name": "rodilleras_2x1_abo_30_nov", "acc": "CP1", "spend": 15585, "purch": 1, "cpa": 15585, "roas": 1.67, "rev": 26000}, {"name": "PISTOLA_CLAVOS", "acc": "CP1", "spend": 16641, "purch": 1, "cpa": 16641, "roas": 2.46, "rev": 40900}, {"name": "MOSCA_REPELENTE_9_DIC_25", "acc": "CP1", "spend": 130291, "purch": 22, "cpa": 5922, "roas": 5.28, "rev": 687700}, {"name": "5_ORGANIZADOR_15_DIC_25", "acc": "CP1", "spend": 58998, "purch": 19, "cpa": 3105, "roas": 9.66, "rev": 569810}, {"name": "CORTA_CESPED_16_DIC_ABO", "acc": "CP1", "spend": 62489, "purch": 18, "cpa": 3472, "roas": 11.84, "rev": 739815}, {"name": "ventilador_swiss_19_dic", "acc": "CP1", "spend": 19974, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "1_campaña_Interacción", "acc": "CP1", "spend": 60100, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "FAJA_SHORT_JAVI_26ENE_26", "acc": "CP1", "spend": 12970, "purch": 6, "cpa": 2162, "roas": 16.19, "rev": 209940}, {"name": "Nueva campaña de Tráfico", "acc": "CP2", "spend": 51778, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "1_MASIVA_JAVI_FAJA_SHORT_30_ENE", "acc": "CP2", "spend": 34059, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "2_CORTA_CESPED_INALAMBRICA_30_ENE", "acc": "CP2", "spend": 33850, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "CORTA_CESPED_INA_7_FEB", "acc": "CP2", "spend": 20586, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "VNTILADOR_TECHO_FAN_8 FEB.", "acc": "CP2", "spend": 15663, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "MAGN_COMPLEX_10_FEB_ABO", "acc": "CP2", "spend": 13176, "purch": 1, "cpa": 13176, "roas": 2.5, "rev": 32900}, {"name": "ZOONE_OJOS_ABO", "acc": "CP2", "spend": 288786, "purch": 37, "cpa": 7805, "roas": 4.45, "rev": 1285534}, {"name": "Turkesterona_abo_18_feb", "acc": "CP2", "spend": 55713, "purch": 3, "cpa": 18571, "roas": 1.93, "rev": 107700}, {"name": "Turkesterona_abo22_feb - Copia", "acc": "CP2", "spend": 33494, "purch": 4, "cpa": 8374, "roas": 4.1, "rev": 137400}, {"name": "MAGN_COMPLEX_5_MAR_CBO", "acc": "CP2", "spend": 163041, "purch": 17, "cpa": 9591, "roas": 3.64, "rev": 593845}, {"name": "TURKESTERONE_CBO_1_MAR _V1", "acc": "CP2", "spend": 82652, "purch": 8, "cpa": 10332, "roas": 3.63, "rev": 299800}, {"name": "TURKESTERONE_CBO_1_MAR _V2", "acc": "CP2", "spend": 115285, "purch": 13, "cpa": 8868, "roas": 4.04, "rev": 465789}, {"name": "CANDIDA_CBO-_3_MAR", "acc": "CP2", "spend": 75315, "purch": 4, "cpa": 18829, "roas": 1.39, "rev": 104680}, {"name": "ZOONE_OJOS_CBO_8MARZ", "acc": "CP2", "spend": 48429, "purch": 5, "cpa": 9686, "roas": 3.44, "rev": 166602}];
+const CLP = v => "$" + Math.round(v).toLocaleString("es-CL");
+const CLPk = v => v>=1e6 ? "$"+(v/1e6).toFixed(1)+"M" : "$"+Math.round(v/1000)+"k";
+const $ = s => document.querySelector(s);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+const T = {
+  spend: DATA.reduce((a,c)=>a+c.spend,0),
+  purch: DATA.reduce((a,c)=>a+c.purch,0),
+  rev:   DATA.reduce((a,c)=>a+c.rev,0),
+};
+T.cpa = T.purch ? T.spend/T.purch : 0;
+T.roas = T.spend ? T.rev/T.spend : 0;
+
+/* KPIs */
+function renderKpis(){
+  const cards = [
+    {label:"💸 Gasto total", val:CLP(T.spend), sub:"inversión en ads (spend)"},
+    {label:"🛒 Compras (Meta)", val:T.purch.toLocaleString("es-CL"), sub:"pedidos generados"},
+    {label:"🎯 CPA aparente", val:CLP(T.cpa), sub:"costo por compra"},
+    {label:"📈 ROAS aparente", val:T.roas.toFixed(2), sub:"retorno según Meta", cls:"kpi--accent"},
+  ];
+  $("#kpis").innerHTML = cards.map(c=>`<div class="kpi ${c.cls||''}"><div class="kpi__label">${c.label}</div><div class="kpi__val tnum">${c.val}</div><div class="kpi__sub">${c.sub}</div></div>`).join("");
+}
+
+/* COD comparison */
+function renderCmp(rate){
+  const dp = T.purch*rate, dcpa = dp? T.spend/dp : 0, droas = T.roas*rate;
+  const cells = [
+    {t:"Pedidos entregados (reales)", ap:T.purch.toLocaleString("es-CL"), re:Math.round(dp).toLocaleString("es-CL")},
+    {t:"CPA real (por entrega)", ap:CLP(T.cpa), re:CLP(dcpa)},
+    {t:"ROAS real", ap:T.roas.toFixed(2), re:droas.toFixed(2)},
+  ];
+  $("#cmp").innerHTML = cells.map(c=>`<div class="cmp__cell"><div class="t">${c.t}</div><div class="two"><span class="ap tnum">${c.ap}</span><span class="re tnum">${c.re}</span></div></div>`).join("");
+}
+
+/* charts */
+let charts=[];
+function grid(){return css("--grid");}
+function ink(){return css("--ink-soft");}
+function mkBarH(id,rows,valFn,color,fmt){
+  const ctx=document.getElementById(id);
+  return new Chart(ctx,{type:"bar",data:{labels:rows.map(r=>r.name.length>26?r.name.slice(0,26)+"…":r.name),
+    datasets:[{data:rows.map(valFn),backgroundColor:rows.map(color),borderRadius:5,barThickness:"flex",maxBarThickness:22}]},
+    options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>fmt(c.raw)}}},
+      scales:{x:{grid:{color:grid()},ticks:{color:ink(),callback:v=>fmt(v)}},
+              y:{grid:{display:false},ticks:{color:ink(),font:{size:11}}}}}});
+}
+function roasColor(r){return r>=4?css("--good"):r>=2?css("--warn"):css("--bad");}
+function renderCharts(){
+  charts.forEach(c=>c.destroy()); charts=[];
+  const bySpend=[...DATA].sort((a,b)=>b.spend-a.spend).slice(0,12);
+  charts.push(mkBarH("cSpend",bySpend,r=>r.spend,()=>css("--accent"),CLPk));
+  const byRoas=DATA.filter(d=>d.purch>=10).sort((a,b)=>b.roas-a.roas).slice(0,12);
+  charts.push(mkBarH("cRoas",byRoas,r=>r.roas,r=>roasColor(r.roas),v=>v.toFixed(2)+"x"));
+  // donut per account
+  const accs=["CP1","CP2"]; const spA=accs.map(a=>DATA.filter(d=>d.acc===a).reduce((s,d)=>s+d.spend,0));
+  charts.push(new Chart(document.getElementById("cAcc"),{type:"doughnut",
+    data:{labels:["Cuenta N°1","Cuenta N°2"],datasets:[{data:spA,backgroundColor:[css("--accent"),css("--warn")],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:"62%",plugins:{legend:{position:"bottom",labels:{color:ink(),padding:14}},
+      tooltip:{callbacks:{label:c=>c.label+": "+CLP(c.raw)}}}}}));
+  // scatter spend vs roas, size=purch
+  const pts=DATA.filter(d=>d.purch>0).map(d=>({x:d.spend,y:d.roas,r:Math.max(4,Math.sqrt(d.purch)*2.2),name:d.name,p:d.purch}));
+  charts.push(new Chart(document.getElementById("cScatter"),{type:"bubble",
+    data:{datasets:[{data:pts,backgroundColor:pts.map(p=>roasColor(p.y)+"cc"),borderColor:pts.map(p=>roasColor(p.y))}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>{const p=c.raw;return p.name+" · "+CLP(p.x)+" · ROAS "+p.y.toFixed(2)+" · "+p.p+" compras";}}}},
+      scales:{x:{type:"logarithmic",grid:{color:grid()},title:{display:true,text:"Gasto (CLP, escala log)",color:ink()},ticks:{color:ink(),callback:v=>CLPk(v)}},
+              y:{grid:{color:grid()},title:{display:true,text:"ROAS",color:ink()},ticks:{color:ink()},
+                 afterBuildTicks:a=>{a.ticks.push({value:1});}}}},
+    plugins:[{id:"be",afterDraw:ch=>{const y=ch.scales.y.getPixelForValue(1);const{left,right}=ch.chartArea;const g=ch.ctx;g.save();g.strokeStyle=css("--bad");g.setLineDash([5,4]);g.beginPath();g.moveTo(left,y);g.lineTo(right,y);g.stroke();g.restore();}}]}));
+}
+
+/* table */
+let sortK="spend",sortDir=-1,accFilter="all";
+function renderTable(){
+  const q=($("#search").value||"").toLowerCase();
+  let rows=DATA.filter(d=>(accFilter==="all"||d.acc===accFilter)&&d.name.toLowerCase().includes(q));
+  rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(typeof x==="string")return sortDir*x.localeCompare(y);return sortDir*(x-y);});
+  const pill=r=>r>=4?"g":r>=2?"w":"b";
+  $("#tbody").innerHTML=rows.map(d=>`<tr>
+    <td>${d.name}</td>
+    <td><span class="acc">${d.acc==="CP1"?"N°1":"N°2"}</span></td>
+    <td class="tnum">${CLP(d.spend)}</td>
+    <td class="tnum">${d.purch}</td>
+    <td class="tnum">${d.cpa?CLP(d.cpa):"—"}</td>
+    <td><span class="pill ${d.purch?pill(d.roas):'b'}">${d.roas.toFixed(2)}</span></td>
+    <td class="tnum">${CLP(d.rev)}</td>
+  </tr>`).join("");
+}
+
+/* wire */
+renderKpis();
+renderCmp(0.46);
+renderCharts();
+renderTable();
+$("#deliv").addEventListener("input",e=>{const r=+e.target.value;$("#delivVal").textContent=r+"%";renderCmp(r/100);});
+$("#search").addEventListener("input",renderTable);
+document.querySelectorAll(".chip").forEach(c=>c.addEventListener("click",()=>{
+  document.querySelectorAll(".chip").forEach(x=>x.classList.remove("on"));c.classList.add("on");accFilter=c.dataset.acc;renderTable();}));
+document.querySelectorAll("th").forEach(th=>th.addEventListener("click",()=>{
+  const k=th.dataset.k;if(k===sortK)sortDir*=-1;else{sortK=k;sortDir=(k==="name")?1:-1;}renderTable();}));
+// re-render charts on theme change
+matchMedia("(prefers-color-scheme:dark)").addEventListener?.("change",()=>renderCharts());
+</script>
+</body>
+</html>
