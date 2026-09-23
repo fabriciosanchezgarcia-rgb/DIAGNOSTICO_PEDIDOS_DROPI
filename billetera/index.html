@@ -81,6 +81,14 @@ textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft
 .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:var(--shadow)}
 .kpi .l{font-size:12px;color:var(--ink-soft);font-weight:600}
 .kpi .v{font-family:"Sora",sans-serif;font-weight:800;font-size:22px;margin-top:5px}
+.section-t{font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);margin:20px 0 10px}
+.table-wrap{overflow-x:auto;margin-top:12px;border:1px solid var(--border);border-radius:12px}
+.mtab{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.mtab th,.mtab td{padding:9px 11px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border)}
+.mtab th:first-child,.mtab td:first-child{text-align:left}
+.mtab th{font-size:11px;text-transform:uppercase;color:var(--ink-faint);background:var(--surface-2)}
+.mtab tbody tr:last-child td{border-bottom:0}
+.mtab td small{font-size:10.5px}
 .note{font-size:12px;color:var(--ink-soft);background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--warn);border-radius:10px;padding:12px 14px;margin-top:14px}
 .err{color:var(--bad);font-size:13px;margin-top:8px;font-weight:600}
 footer{padding:22px 0 10px;text-align:center;color:var(--ink-faint);font-size:12px}
@@ -151,13 +159,13 @@ function categorize(desc){
 function parse(text){
   // Captura: id (6+ dígitos) ... ENTRADA|SALIDA ... monto ... montoPrevio ... descripción
   // tolerante a tabs/saltos de línea/espacios
-  const re=/(\d{6,})[\t ]+\d{2}\/\d{2}\/\d{4}[^\n]*?\n?\s*(ENTRADA|SALIDA)\s*\n?\s*(-?\$\s?[\d.]+)[\t ]+\$\s?[\d.]+[\t ]+([^\n\t]+)/gi;
+  const re=/(\d{6,})[\t ]+(\d{2})\/(\d{2})\/(\d{4})[^\n]*?\n?\s*(ENTRADA|SALIDA)\s*\n?\s*(-?\$\s?[\d.]+)[\t ]+\$\s?[\d.]+[\t ]+([^\n\t]+)/gi;
   const seen=new Set(); const recs=[]; let m;
   while((m=re.exec(text))!==null){
     const id=m[1];
     if(seen.has(id)) continue;
     seen.add(id);
-    recs.push({id, tipo:m[2].toUpperCase(), monto:parseMonto(m[3]), desc:m[4].trim()});
+    recs.push({id, month:m[4]+"-"+m[3], tipo:m[5].toUpperCase(), monto:parseMonto(m[6]), desc:m[7].trim()});
   }
   return recs;
 }
@@ -198,6 +206,47 @@ function render(recs, ads){
     <div class="prow" style="border-bottom:1px solid var(--border)"><div class="lab mut">ℹ️ Recargas / capital ingresado</div><div class="cnt">${agg.capital.n} mov.</div><div class="amt mut">${CLP(agg.capital.sum)}</div></div>
     <div class="prow"><div class="lab mut">ℹ️ Transferencias enviadas · Garantías · Otros</div><div class="cnt">${agg.transfout.n+agg.garantia.n+agg.otros.n} mov.</div><div class="amt mut">${CLP(agg.transfout.sum+agg.garantia.sum+agg.otros.sum)}</div></div>
   </div>`;
+
+  // ===== Software Fenix + desglose mensual =====
+  const MON={};
+  recs.forEach(r=>{
+    const c=categorize(r.desc);
+    if(!MON[r.month]) MON[r.month]={ganancia:0,devolucion:0,flete:0,software:0,nuevaorden:0,swN:0};
+    const a=MON[r.month], amt=Math.abs(r.monto);
+    if(c.key==="ganancia")a.ganancia+=amt;
+    else if(c.key==="devolucion")a.devolucion+=amt;
+    else if(c.key==="flete")a.flete+=amt;
+    else if(c.key==="software"){a.software+=amt;a.swN++;}
+    else if(c.key==="nuevaorden")a.nuevaorden+=amt;
+  });
+  const MES=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  const mlabel=k=>{const p=k.split("-");return MES[(+p[1])-1]+" "+p[0];};
+  const mkeys=Object.keys(MON).sort();
+  const sw=agg.software.sum, swN=agg.software.n;
+  const pctGan=ganancia?100*sw/ganancia:0, pctCost=costos?100*sw/costos:0;
+  const mesesConSw=mkeys.filter(k=>MON[k].software>0).length;
+
+  html+=`<div class="section-t">💸 Software Fenix Ventures — cuánto se llevó</div>
+   <div class="kpis">
+     <div class="kpi"><div class="l">Total pagado a Fenix</div><div class="v tnum neg">${CLP(sw)}</div></div>
+     <div class="kpi"><div class="l">N° de cobros · $849 c/u</div><div class="v tnum">${swN}</div></div>
+     <div class="kpi"><div class="l">% de tu ganancia</div><div class="v tnum">${pctGan.toFixed(1)}%</div></div>
+   </div>
+   <p class="hint" style="margin-top:8px">Fenix se llevó <b>${CLP(sw)}</b> — el <b>${pctGan.toFixed(1)}%</b> de tu ganancia y el <b>${pctCost.toFixed(1)}%</b> de tus costos operativos${mesesConSw?`, repartido en ${mesesConSw} meses (~${CLP(sw/Math.max(1,mesesConSw))}/mes)`:''}.</p>`;
+
+  html+=`<div class="section-t">📅 Detalle por mes</div>
+   <div class="table-wrap"><table class="mtab">
+    <thead><tr><th>Mes</th><th>Ganancia</th><th>Devol.</th><th>Flete</th><th>Software Fenix</th><th>Nueva orden</th><th>Utilidad op.</th></tr></thead>
+    <tbody>${mkeys.map(k=>{
+      const a=MON[k]; const op=a.ganancia-(a.devolucion+a.flete+a.software+a.nuevaorden);
+      return `<tr><td>${mlabel(k)}</td>
+        <td class="pos">${a.ganancia?CLP(a.ganancia):'—'}</td>
+        <td class="neg">${a.devolucion?CLP(a.devolucion):'—'}</td>
+        <td class="neg">${a.flete?CLP(a.flete):'—'}</td>
+        <td class="neg" style="background:var(--warn-soft)">${a.software?CLP(a.software):'—'}${a.swN?` <small class="mut">·${a.swN}</small>`:''}</td>
+        <td class="neg">${a.nuevaorden?CLP(a.nuevaorden):'—'}</td>
+        <td class="${op>=0?'pos':'neg'}" style="font-weight:700">${CLP(op)}</td></tr>`;
+    }).join("")}</tbody></table></div>`;
 
   $("#out").innerHTML=html;
   $("#status").textContent=`Detectadas ${recs.length} transacciones únicas.`;
