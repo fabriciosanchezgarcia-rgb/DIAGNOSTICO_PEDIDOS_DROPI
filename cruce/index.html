@@ -257,7 +257,7 @@ function renderInsights(){
 function renderAll(){renderVerdict();renderPnl();renderTable();renderInsights();}
 
 function bindSlider(id,key,fmt,scale){
-  const el=$(id), out=$("#o"+id.slice(1));
+  const el=$(id), out=$("#o"+id.slice(2));
   el.value = key==="deliv"? S[key]*100 : S[key];
   const upd=()=>{ let v=+el.value; S[key]= key==="deliv"? v/100 : v; out.textContent=fmt(S[key]); renderAll(); };
   el.addEventListener("input",upd); upd();
