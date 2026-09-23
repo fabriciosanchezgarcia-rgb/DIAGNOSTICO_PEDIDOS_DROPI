@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rentabilidad Real · Meta × Dropi</title>
+<meta name="description" content="Cruce Meta × Dropi: ganancia neta real por pedido en pago contra entrega, punto de equilibrio y rentabilidad por campaña." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap" />
+<style>
+:root{
+  --bg:#f4f6fa; --surface:#ffffff; --surface-2:#eef1f7; --border:#e1e6ef;
+  --ink:#141821; --ink-soft:#586074; --ink-faint:#8a93a6;
+  --accent:#3f63f0; --accent-soft:rgba(63,99,240,.12);
+  --good:#12a06a; --good-soft:rgba(18,160,106,.14);
+  --warn:#d98a1f; --warn-soft:rgba(217,138,31,.14);
+  --bad:#d83a34; --bad-soft:rgba(216,58,52,.12);
+  --shadow:0 1px 2px rgba(18,24,40,.04), 0 14px 32px -16px rgba(18,24,40,.16);
+  --radius:15px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0b0e15; --surface:#131824; --surface-2:#1a2130; --border:#28324a;
+  --ink:#eef2fb; --ink-soft:#8f9ab2; --ink-faint:#6a7590;
+  --accent:#6a8bff; --accent-soft:rgba(106,139,255,.16);
+  --good:#33c78a; --good-soft:rgba(51,199,138,.16);
+  --warn:#eab24a; --warn-soft:rgba(234,178,74,.16);
+  --bad:#ff5b52; --bad-soft:rgba(255,91,82,.16);
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 18px 40px -18px rgba(0,0,0,.7);
+}}
+:root[data-theme="dark"]{
+  --bg:#0b0e15; --surface:#131824; --surface-2:#1a2130; --border:#28324a;
+  --ink:#eef2fb; --ink-soft:#8f9ab2; --ink-faint:#6a7590;
+  --accent:#6a8bff; --accent-soft:rgba(106,139,255,.16);
+  --good:#33c78a; --good-soft:rgba(51,199,138,.16);
+  --warn:#eab24a; --warn-soft:rgba(234,178,74,.16);
+  --bad:#ff5b52; --bad-soft:rgba(255,91,82,.16);
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 18px 40px -18px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Manrope",system-ui,sans-serif;font-size:15px;line-height:1.5}
+h1,h2,h3{font-family:"Sora","Manrope",sans-serif;margin:0;line-height:1.1;letter-spacing:-.02em}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:18px}
+.top{border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:20}
+.top__in{max-width:1100px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;gap:11px;flex-wrap:wrap;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:11px}
+.brand__ic{width:36px;height:36px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center}
+.brand h1{font-size:17px;font-weight:800}
+.brand span{font-size:12px;color:var(--ink-soft)}
+.top__meta{font-size:11.5px;color:var(--ink-faint);text-align:right}
+.section-title{font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);margin:26px 0 12px}
+
+/* hero verdict */
+.verdict{margin-top:20px;border-radius:18px;padding:22px;box-shadow:var(--shadow);border:1px solid var(--border);background:var(--surface)}
+.verdict__grid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:16px}
+@media (max-width:760px){.verdict__grid{grid-template-columns:1fr}}
+.big{background:linear-gradient(160deg,var(--accent-soft),transparent),var(--surface-2);border-radius:14px;padding:18px}
+.big .l{font-size:12.5px;color:var(--ink-soft);font-weight:600}
+.big .v{font-family:"Sora",sans-serif;font-weight:800;font-size:40px;margin-top:6px;line-height:1}
+.big .s{font-size:12.5px;color:var(--ink-faint);margin-top:6px}
+.mini{background:var(--surface-2);border-radius:14px;padding:18px;display:flex;flex-direction:column;justify-content:center}
+.mini .l{font-size:12.5px;color:var(--ink-soft);font-weight:600}
+.mini .v{font-family:"Sora",sans-serif;font-weight:800;font-size:26px;margin-top:6px}
+.mini .s{font-size:12px;color:var(--ink-faint);margin-top:4px}
+.pos{color:var(--good)} .neg{color:var(--bad)} .neu{color:var(--warn)}
+
+/* controls */
+.controls{margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.controls h3{font-size:15px;font-weight:700;margin-bottom:4px}
+.controls .csub{font-size:12.5px;color:var(--ink-soft);margin-bottom:14px}
+.sliders{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px}
+@media (max-width:640px){.sliders{grid-template-columns:1fr}}
+.sl label{display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px}
+.sl label b{font-family:"Sora",sans-serif;color:var(--accent);font-size:15px}
+.sl input[type=range]{width:100%;accent-color:var(--accent)}
+
+/* pnl bars */
+.pnl{margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.pnl h3{font-size:15px;font-weight:700;margin-bottom:2px}
+.pnl .csub{font-size:12.5px;color:var(--ink-soft);margin-bottom:16px}
+.bar{display:grid;grid-template-columns:170px 1fr 110px;align-items:center;gap:12px;margin-bottom:11px}
+@media (max-width:560px){.bar{grid-template-columns:130px 1fr 92px}}
+.bar .bl{font-size:13px;color:var(--ink-soft)}
+.bar .track{height:22px;background:var(--surface-2);border-radius:6px;overflow:hidden;position:relative}
+.bar .fill{height:100%;border-radius:6px}
+.bar .bv{text-align:right;font-family:"Sora",sans-serif;font-weight:700;font-size:14px}
+.bar.total{border-top:1px solid var(--border);padding-top:12px;margin-top:4px}
+.bar.total .bl{color:var(--ink);font-weight:700}
+.bar.total .bv{font-size:18px}
+
+/* table */
+.card{margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.card h3{font-size:15px;font-weight:700}
+.card .csub{font-size:12.5px;color:var(--ink-soft);margin:2px 0 12px}
+.tbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{font-size:12.5px;font-weight:600;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--border);border-radius:100px;padding:7px 13px;cursor:pointer}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:9px 11px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border)}
+th:first-child,td:first-child{text-align:left;white-space:normal;min-width:180px}
+th{font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-faint);cursor:pointer;user-select:none}
+th:hover{color:var(--accent)}
+tbody tr:hover{background:var(--surface-2)}
+.pill{display:inline-block;padding:2px 9px;border-radius:100px;font-weight:700;font-size:12px}
+.pill.g{background:var(--good-soft);color:var(--good)}
+.pill.b{background:var(--bad-soft);color:var(--bad)}
+
+.insights{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:640px){.insights{grid-template-columns:1fr}}
+.ins{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:14px}
+.ins.warn{border-left-color:var(--warn)} .ins.bad{border-left-color:var(--bad)} .ins.good{border-left-color:var(--good)}
+.ins b{font-size:13.5px} .ins p{font-size:12.5px;color:var(--ink-soft);margin:5px 0 0}
+.note{font-size:12px;color:var(--ink-soft);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:14px}
+footer{padding:24px 18px 40px;text-align:center;color:var(--ink-faint);font-size:12px}
+</style>
+</head>
+<body>
+<div class="top"><div class="top__in">
+  <div class="brand">
+    <div class="brand__ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+    <div><h1>Rentabilidad Real</h1><span>Cruce Meta (adquisición) × Dropi (entrega)</span></div>
+  </div>
+  <div class="top__meta">Modelo de unidad económica · COD Chile · CLP<br>Base Dropi: Dic 2025 (854 pedidos) · Meta: histórico</div>
+</div></div>
+
+<div class="wrap">
+  <div class="section-title">El veredicto — por pedido generado</div>
+  <div class="verdict"><div class="verdict__grid">
+    <div class="big"><div class="l">💰 Ganancia neta por pedido generado</div><div class="v tnum" id="vNet">—</div><div class="s" id="vNetSub"></div></div>
+    <div class="mini"><div class="l">⚖️ Entrega de equilibrio (break-even)</div><div class="v tnum" id="vBEdeliv">—</div><div class="s">tu entrega actual: <b id="vCurDeliv"></b></div></div>
+    <div class="mini"><div class="l">🎯 CPA máximo permitido</div><div class="v tnum" id="vBEcpa">—</div><div class="s">tu CPA actual: <b id="vCurCpa"></b></div></div>
+  </div></div>
+
+  <div class="controls">
+    <h3>Ajusta tu escenario</h3>
+    <div class="csub">Los valores vienen de tus datos reales (Meta + Dropi Dic). Muévelos para simular.</div>
+    <div class="sliders">
+      <div class="sl"><label for="sCpa">CPA — costo por pedido (Meta) <b id="oCpa"></b></label><input type="range" id="sCpa" min="2000" max="14000" step="100"></div>
+      <div class="sl"><label for="sDeliv">Tasa de entrega (Dropi) <b id="oDeliv"></b></label><input type="range" id="sDeliv" min="20" max="100" step="1"></div>
+      <div class="sl"><label for="sGan">Ganancia bruta por entrega <b id="oGan"></b></label><input type="range" id="sGan" min="4000" max="24000" step="200"></div>
+      <div class="sl"><label for="sRet">Costo devolución (no entregado) <b id="oRet"></b></label><input type="range" id="sRet" min="0" max="3000" step="50"></div>
+    </div>
+  </div>
+
+  <div class="pnl">
+    <h3>P&L por pedido generado</h3>
+    <div class="csub">De cada pedido que genera un anuncio, esto queda al final</div>
+    <div id="pnlBars"></div>
+  </div>
+
+  <div class="section-title">Rentabilidad por campaña (aplicando el modelo)</div>
+  <div class="card">
+    <div class="csub">Cada campaña con su CPA real de Meta, evaluada con la entrega y márgenes de arriba. Verde = gana, rojo = pierde.</div>
+    <div class="tbar">
+      <span class="chip on" data-f="all">Todas</span>
+      <span class="chip" data-f="win">Rentables</span>
+      <span class="chip" data-f="loss">En pérdida</span>
+      <span class="chip" data-f="CP1">Cuenta 1</span>
+      <span class="chip" data-f="CP2">Cuenta 2</span>
+    </div>
+    <div class="table-scroll"><table>
+      <thead><tr>
+        <th data-k="name">Campaña</th><th data-k="spend">Gasto</th><th data-k="purch">Pedidos</th>
+        <th data-k="cpa">CPA</th><th data-k="netu">Neto/pedido</th><th data-k="nett">Ganancia neta total</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table></div>
+  </div>
+
+  <div class="insights" id="insights"></div>
+
+  <div class="note">📌 <strong>Cómo se calcula:</strong> Neto por pedido generado = (Tasa entrega × Ganancia bruta por entrega) − CPA de Meta − (No entregados × Costo devolución). La "Ganancia bruta por entrega" ($13.068) sale de Dropi Dic (recaudo − proveedor − flete) y <strong>ya está antes</strong> de restar publicidad y devoluciones. El cruce por producto exacto requeriría un Dropi con nombre de producto por pedido (el actual solo trae categorías).</div>
+</div>
+<footer>Modelo Meta × Dropi · Procesado en tu navegador · Ajusta los supuestos a tu realidad.</footer>
+
+<script>
+const CAMPAIGNS = [{"name": "Interacción DOM 27 ABR.", "acc": "CP1", "spend": 8283, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "Tráfico 12 OCT", "acc": "CP1", "spend": 5595, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "PICADORA_VERDURAS_ELECTRICA", "acc": "CP1", "spend": 9006, "purch": 1, "cpa": 9006, "roas": 2.77, "rev": 24990}, {"name": "TRENSADOR_CABELLO_26_SEP_ABO_TEST", "acc": "CP1", "spend": 6658, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "CEPILLO_LIMPIEZA_7_1_26_09_TESTEO_ABO", "acc": "CP1", "spend": 6303, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "FAJA_TANGA_27_09_TEST_ABO", "acc": "CP1", "spend": 29814, "purch": 2, "cpa": 14907, "roas": 2.01, "rev": 59980}, {"name": "PARCHE_KINOKI_28_09_25_TEST_ABO", "acc": "CP1", "spend": 35863, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "TECLADO_PLEGABLE_28_09_TEST_ABO", "acc": "CP1", "spend": 22927, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "ANTENA_TV_28_09_TESTEO_ABO", "acc": "CP1", "spend": 272496, "purch": 19, "cpa": 14342, "roas": 1.71, "rev": 465870}, {"name": "MINI_LINTERNA_LED_28_09_TESTEO_ABO", "acc": "CP1", "spend": 13694, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "DUCHA_PORTATIL_CAMPING_28_09_TEST_ABO", "acc": "CP1", "spend": 7975, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "COJIN_GEL_29_09_TEST_ABO", "acc": "CP1", "spend": 21616, "purch": 1, "cpa": 21616, "roas": 1.15, "rev": 24900}, {"name": "PAPEL_VINIL_(GANADOR)_01_09_ABO", "acc": "CP1", "spend": 11341, "purch": 1, "cpa": 11341, "roas": 2.64, "rev": 29990}, {"name": "PICADORA_ELECTRICA_(GANADOR)_01_10_ABO", "acc": "CP1", "spend": 24600, "purch": 1, "cpa": 24600, "roas": 1.63, "rev": 39990}, {"name": "POLVO_CAÑERIAS_04_10_ABO", "acc": "CP1", "spend": 22362, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "CLAVOS_FULMINANTES_04_10_ABO", "acc": "CP1", "spend": 10772, "purch": 1, "cpa": 10772, "roas": 3.76, "rev": 40485}, {"name": "FAJA_COMPLETA_06_10_ABO", "acc": "CP1", "spend": 296693, "purch": 36, "cpa": 8241, "roas": 3.72, "rev": 1103215}, {"name": "CAMARA_SOLAR_06_10_ABO", "acc": "CP1", "spend": 7831, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "LUZ_LED_FOCO_06_10_ABO", "acc": "CP1", "spend": 31353, "purch": 6, "cpa": 5226, "roas": 3.83, "rev": 119940}, {"name": "Corre_pasillos_dino_07_10_ABO", "acc": "CP1", "spend": 6801, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "CAPSULA_DEOS_OLOR", "acc": "CP1", "spend": 7406, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "BAÑO_BEBE_9_10_ABO", "acc": "CP1", "spend": 17812, "purch": 1, "cpa": 17812, "roas": 2.36, "rev": 41990}, {"name": "HIDRO_PORTATIL_10_10_ABO", "acc": "CP1", "spend": 15694, "purch": 1, "cpa": 15694, "roas": 2.55, "rev": 39990}, {"name": "COMPAÑA_RAIZ_BODY_FAJA_12_10_ABO", "acc": "CP1", "spend": 2589594, "purch": 646, "cpa": 4009, "roas": 8.3, "rev": 21505449}, {"name": "NEBULIZADOR_12_10_ABO", "acc": "CP1", "spend": 90440, "purch": 12, "cpa": 7537, "roas": 3.72, "rev": 336150}, {"name": "AMPLIFICADOR_AUDÍFONO_17_10_ABO", "acc": "CP1", "spend": 28747, "purch": 4, "cpa": 7187, "roas": 3.98, "rev": 114500}, {"name": "TENDEDERO_RETRACTIL", "acc": "CP1", "spend": 44276, "purch": 5, "cpa": 8855, "roas": 4.12, "rev": 182427}, {"name": "SOPORTE_CELU_19_10_ABO", "acc": "CP1", "spend": 9798, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "IRRIGADOR_BUC_19_10_ABO", "acc": "CP1", "spend": 14694, "purch": 3, "cpa": 4898, "roas": 5.49, "rev": 80700}, {"name": "PICADORA_VERDURAS_20_10", "acc": "CP1", "spend": 1207111, "purch": 290, "cpa": 4162, "roas": 5.12, "rev": 6183880}, {"name": "ACEITE_OREGANO_25_10", "acc": "CP1", "spend": 1068713, "purch": 234, "cpa": 4567, "roas": 7.2, "rev": 7694060}, {"name": "PASTA_OBSESSIVE_29_10_ABO", "acc": "CP1", "spend": 21115, "purch": 2, "cpa": 10558, "roas": 2.18, "rev": 45980}, {"name": "SERUM_PESTAÑAS_02_11_ABO", "acc": "CP1", "spend": 678336, "purch": 163, "cpa": 4162, "roas": 5.72, "rev": 3883150}, {"name": "KIT_PESTAÑAS_CEJAS_02_11", "acc": "CP1", "spend": 10103, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "KIT_PESTAÑAS_MAGNÉTICAS_02_11", "acc": "CP1", "spend": 13500, "purch": 1, "cpa": 13500, "roas": 1.47, "rev": 19900}, {"name": "LUZ_LED_NAVIDAD_5_11_ABO", "acc": "CP1", "spend": 571099, "purch": 82, "cpa": 6965, "roas": 3.91, "rev": 2232700}, {"name": "FULL_BODY_9_11_ABO", "acc": "CP1", "spend": 976030, "purch": 207, "cpa": 4715, "roas": 5.71, "rev": 5574290}, {"name": "alisador_verde_13_nov_abo", "acc": "CP1", "spend": 63371, "purch": 8, "cpa": 7921, "roas": 2.89, "rev": 183200}, {"name": "ASPIRADORA_VERTICAL", "acc": "CP1", "spend": 15423, "purch": 1, "cpa": 15423, "roas": 1.81, "rev": 27900}, {"name": "SHILAJIT_19_11_ABO", "acc": "CP1", "spend": 15127, "purch": 2, "cpa": 7564, "roas": 4.12, "rev": 62250}, {"name": "FAJA_JAVI_COMPLETA_23_11", "acc": "CP1", "spend": 303612, "purch": 56, "cpa": 5422, "roas": 5.0, "rev": 1518400}, {"name": "ESCALERA_SWISS_4_PELDAÑOS", "acc": "CP1", "spend": 19415, "purch": 1, "cpa": 19415, "roas": 1.9, "rev": 36900}, {"name": "CBO_FAJA_SHORT_JAVI_27_NOV", "acc": "CP1", "spend": 335724, "purch": 58, "cpa": 5788, "roas": 5.02, "rev": 1685650}, {"name": "SHILAJIT_RESINA_27_NOV_ABO", "acc": "CP1", "spend": 196542, "purch": 79, "cpa": 2488, "roas": 11.47, "rev": 2253450}, {"name": "rodilleras_2x1_abo_30_nov", "acc": "CP1", "spend": 15585, "purch": 1, "cpa": 15585, "roas": 1.67, "rev": 26000}, {"name": "PISTOLA_CLAVOS", "acc": "CP1", "spend": 16641, "purch": 1, "cpa": 16641, "roas": 2.46, "rev": 40900}, {"name": "MOSCA_REPELENTE_9_DIC_25", "acc": "CP1", "spend": 130291, "purch": 22, "cpa": 5922, "roas": 5.28, "rev": 687700}, {"name": "5_ORGANIZADOR_15_DIC_25", "acc": "CP1", "spend": 58998, "purch": 19, "cpa": 3105, "roas": 9.66, "rev": 569810}, {"name": "CORTA_CESPED_16_DIC_ABO", "acc": "CP1", "spend": 62489, "purch": 18, "cpa": 3472, "roas": 11.84, "rev": 739815}, {"name": "ventilador_swiss_19_dic", "acc": "CP1", "spend": 19974, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "1_campaña_Interacción", "acc": "CP1", "spend": 60100, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "FAJA_SHORT_JAVI_26ENE_26", "acc": "CP1", "spend": 12970, "purch": 6, "cpa": 2162, "roas": 16.19, "rev": 209940}, {"name": "Nueva campaña de Tráfico", "acc": "CP2", "spend": 51778, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "1_MASIVA_JAVI_FAJA_SHORT_30_ENE", "acc": "CP2", "spend": 34059, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "2_CORTA_CESPED_INALAMBRICA_30_ENE", "acc": "CP2", "spend": 33850, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "CORTA_CESPED_INA_7_FEB", "acc": "CP2", "spend": 20586, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "VNTILADOR_TECHO_FAN_8 FEB.", "acc": "CP2", "spend": 15663, "purch": 0, "cpa": 0, "roas": 0.0, "rev": 0}, {"name": "MAGN_COMPLEX_10_FEB_ABO", "acc": "CP2", "spend": 13176, "purch": 1, "cpa": 13176, "roas": 2.5, "rev": 32900}, {"name": "ZOONE_OJOS_ABO", "acc": "CP2", "spend": 288786, "purch": 37, "cpa": 7805, "roas": 4.45, "rev": 1285534}, {"name": "Turkesterona_abo_18_feb", "acc": "CP2", "spend": 55713, "purch": 3, "cpa": 18571, "roas": 1.93, "rev": 107700}, {"name": "Turkesterona_abo22_feb - Copia", "acc": "CP2", "spend": 33494, "purch": 4, "cpa": 8374, "roas": 4.1, "rev": 137400}, {"name": "MAGN_COMPLEX_5_MAR_CBO", "acc": "CP2", "spend": 163041, "purch": 17, "cpa": 9591, "roas": 3.64, "rev": 593845}, {"name": "TURKESTERONE_CBO_1_MAR _V1", "acc": "CP2", "spend": 82652, "purch": 8, "cpa": 10332, "roas": 3.63, "rev": 299800}, {"name": "TURKESTERONE_CBO_1_MAR _V2", "acc": "CP2", "spend": 115285, "purch": 13, "cpa": 8868, "roas": 4.04, "rev": 465789}, {"name": "CANDIDA_CBO-_3_MAR", "acc": "CP2", "spend": 75315, "purch": 4, "cpa": 18829, "roas": 1.39, "rev": 104680}, {"name": "ZOONE_OJOS_CBO_8MARZ", "acc": "CP2", "spend": 48429, "purch": 5, "cpa": 9686, "roas": 3.44, "rev": 166602}];
+// Constantes reales de Dropi Diciembre 2025
+const BASE = { deliv:0.459, gan:13068, ret:717, blendedCpa:5076 };
+const CLP = v => (v<0?"-$":"$") + Math.abs(Math.round(v)).toLocaleString("es-CL");
+const $ = s => document.querySelector(s);
+
+const S = { cpa:BASE.blendedCpa, deliv:BASE.deliv, gan:BASE.gan, ret:BASE.ret };
+
+function netPerOrder(cpa, deliv, gan, ret){ return deliv*gan - cpa - (1-deliv)*ret; }
+function beDeliv(cpa, gan, ret){ return (cpa+ret)/(gan+ret); }      // net=0 solve d
+function beCpa(deliv, gan, ret){ return deliv*gan - (1-deliv)*ret; } // net=0 solve cpa
+
+function renderVerdict(){
+  const net = netPerOrder(S.cpa,S.deliv,S.gan,S.ret);
+  const grossExp = S.deliv*S.gan;
+  const el=$("#vNet"); el.textContent=CLP(net);
+  el.className="v tnum "+(net>0?"pos":net<0?"neg":"neu");
+  $("#vNetSub").textContent = (net>0?"Rentable · ":"Pérdida · ")+"margen neto "+(grossExp?Math.round(100*net/grossExp):0)+"% sobre ganancia bruta";
+  const bed=beDeliv(S.cpa,S.gan,S.ret);
+  $("#vBEdeliv").textContent=(bed*100).toFixed(0)+"%";
+  $("#vBEdeliv").className="v tnum "+(S.deliv>bed?"pos":"neg");
+  $("#vCurDeliv").textContent=(S.deliv*100).toFixed(0)+"%";
+  const bec=beCpa(S.deliv,S.gan,S.ret);
+  $("#vBEcpa").textContent=CLP(bec);
+  $("#vBEcpa").className="v tnum "+(S.cpa<bec?"pos":"neg");
+  $("#vCurCpa").textContent=CLP(S.cpa);
+}
+
+function renderPnl(){
+  const grossExp=S.deliv*S.gan, adCost=S.cpa, retCost=(1-S.deliv)*S.ret;
+  const net=grossExp-adCost-retCost;
+  const max=Math.max(grossExp,adCost,retCost,Math.abs(net),1);
+  const rows=[
+    {l:"Ganancia bruta esperada",v:grossExp,c:"var(--good)"},
+    {l:"− Costo Meta (CPA)",v:-adCost,c:"var(--bad)"},
+    {l:"− Devoluciones",v:-retCost,c:"var(--warn)"},
+  ];
+  let html=rows.map(r=>`<div class="bar"><span class="bl">${r.l}</span><span class="track"><span class="fill" style="width:${Math.abs(r.v)/max*100}%;background:${r.c}"></span></span><span class="bv" style="color:${r.c}">${CLP(r.v)}</span></div>`).join("");
+  const nc=net>=0?"var(--good)":"var(--bad)";
+  html+=`<div class="bar total"><span class="bl">= Ganancia neta</span><span class="track"><span class="fill" style="width:${Math.abs(net)/max*100}%;background:${nc}"></span></span><span class="bv" style="color:${nc}">${CLP(net)}</span></div>`;
+  $("#pnlBars").innerHTML=html;
+}
+
+let sortK="nett",sortDir=-1,filt="all";
+function renderTable(){
+  let rows=CAMPAIGNS.filter(c=>c.purch>0).map(c=>{
+    const netu=netPerOrder(c.cpa,S.deliv,S.gan,S.ret);
+    return {...c, netu, nett:netu*c.purch};
+  });
+  if(filt==="win") rows=rows.filter(r=>r.netu>0);
+  else if(filt==="loss") rows=rows.filter(r=>r.netu<=0);
+  else if(filt==="CP1"||filt==="CP2") rows=rows.filter(r=>r.acc===filt);
+  rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(typeof x==="string")return sortDir*x.localeCompare(y);return sortDir*(x-y);});
+  $("#tbody").innerHTML=rows.map(r=>`<tr>
+    <td>${r.name}</td>
+    <td class="tnum">${CLP(r.spend)}</td>
+    <td class="tnum">${r.purch}</td>
+    <td class="tnum">${CLP(r.cpa)}</td>
+    <td class="tnum"><span class="pill ${r.netu>0?'g':'b'}">${CLP(r.netu)}</span></td>
+    <td class="tnum" style="color:${r.nett>0?'var(--good)':'var(--bad)'};font-weight:700">${CLP(r.nett)}</td>
+  </tr>`).join("");
+}
+
+function renderInsights(){
+  const rows=CAMPAIGNS.filter(c=>c.purch>0).map(c=>({...c,netu:netPerOrder(c.cpa,S.deliv,S.gan,S.ret)}));
+  const win=rows.filter(r=>r.netu>0), loss=rows.filter(r=>r.netu<=0);
+  const totNet=rows.reduce((a,r)=>a+r.netu*r.purch,0);
+  const lossSpend=loss.reduce((a,r)=>a+r.spend,0);
+  const bed=beDeliv(S.cpa,S.gan,S.ret);
+  const items=[
+    {cls:totNet>0?"good":"bad",b:(totNet>0?"Negocio rentable, pero ajustado":"Negocio en pérdida"),p:`Con estos supuestos, la ganancia neta total histórica sería ${CLP(totNet)}.`},
+    {cls:"warn",b:`Estás a ${((S.deliv-bed)*100).toFixed(0)} pts del equilibrio`,p:`Si la entrega baja de ${(bed*100).toFixed(0)}%, empiezas a perder. Subir la entrega (confirmación por WhatsApp) es tu palanca #1.`},
+    {cls:win.length>=loss.length?"good":"bad",b:`${win.length} campañas rentables · ${loss.length} en pérdida`,p:`Las campañas en pérdida quemaron ${CLP(lossSpend)} de gasto. Cortar CPAs altos sube el promedio.`},
+    {cls:"accent",b:"La palanca del CPA",p:`Tu CPA de equilibrio es ${CLP(beCpa(S.deliv,S.gan,S.ret))}. Toda campaña por debajo gana; por encima, pierde.`},
+  ];
+  $("#insights").innerHTML=items.map(i=>`<div class="ins ${i.cls}"><b>${i.b}</b><p>${i.p}</p></div>`).join("");
+}
+
+function renderAll(){renderVerdict();renderPnl();renderTable();renderInsights();}
+
+function bindSlider(id,key,fmt,scale){
+  const el=$(id), out=$("#o"+id.slice(1));
+  el.value = key==="deliv"? S[key]*100 : S[key];
+  const upd=()=>{ let v=+el.value; S[key]= key==="deliv"? v/100 : v; out.textContent=fmt(S[key]); renderAll(); };
+  el.addEventListener("input",upd); upd();
+}
+bindSlider("#sCpa","cpa",v=>CLP(v));
+bindSlider("#sDeliv","deliv",v=>(v*100).toFixed(0)+"%");
+bindSlider("#sGan","gan",v=>CLP(v));
+bindSlider("#sRet","ret",v=>CLP(v));
+
+document.querySelectorAll(".chip").forEach(c=>c.addEventListener("click",()=>{
+  document.querySelectorAll(".chip").forEach(x=>x.classList.remove("on"));c.classList.add("on");filt=c.dataset.f;renderTable();}));
+document.querySelectorAll("th").forEach(th=>th.addEventListener("click",()=>{
+  const k=th.dataset.k;if(k===sortK)sortDir*=-1;else{sortK=k;sortDir=(k==="name")?1:-1;}renderTable();}));
+renderAll();
+</script>
+</body>
+</html>
